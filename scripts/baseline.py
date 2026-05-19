@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score, confusion_matrix
 
 from seismonn.data.dataset import SeismoDataset
+from seismonn.models.cnn import SeismoCNN
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 OUTPUT_DIR = PROJECT_ROOT / "outputs"
@@ -35,56 +36,9 @@ val_dataset = SeismoDataset(
 train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
 val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False)
 
-
-class SeismoCNN(nn.Module):
-    def __init__(self):
-        super().__init__()
-
-        self.features = nn.Sequential(
-            nn.Conv2d(2, 16, 3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-            nn.Conv2d(16, 32, 3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-            nn.Conv2d(32, 64, 3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2),
-        )
-
-        self.classifier = nn.Sequential(
-            nn.AdaptiveAvgPool2d((4, 4)),
-            nn.Flatten(),
-            nn.Linear(64 * 4 * 4, 128),
-            nn.ReLU(),
-            nn.Linear(128, 3),
-        )
-
-    def forward(self, x):
-        x = self.features(x)
-        return self.classifier(x)
-
-
-model = SeismoCNN()
-# изменить первый слой (3 → 2 канала)
-"""
-model.features[0][0] = nn.Conv2d(
-    2,
-    32,
-    kernel_size=3,
-    stride=2,
-    padding=1,
-    bias=False
-)
-
-# изменить классификатор (3 класса)
-
-model.classifier[1] = nn.Linear(1280,3)
-"""
-
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-model = model.to(device)
+model = SeismoCNN(in_channels=2, num_classes=3, dropout=0.2).to(device)
 
 criterion = nn.CrossEntropyLoss()
 
@@ -119,7 +73,7 @@ train_losses = []
 train_accuracies = []
 val_accuracies = []
 
-num_epochs = 2
+num_epochs = 1
 
 for epoch in range(num_epochs):
     model.train()
