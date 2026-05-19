@@ -1,0 +1,25 @@
+{
+  "best_epoch": 2,
+  "best_metric": 0.22860650705954574,
+  "metric_to_optimize": "val_macro_f1",
+  "final_val_loss": 1.0984194888208145,
+  "final_val_accuracy": 0.37593984962406013,
+  "final_val_macro_f1": 0.18214936247723135,
+  "final_val_confusion_matrix": [
+    [
+      50,
+      0,
+      0
+    ],
+    [
+      55,
+      0,
+      0
+    ],
+    [
+      28,
+      0,
+      0
+    ]
+  ]
+}
