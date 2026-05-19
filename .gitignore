@@ -8,7 +8,8 @@ wheels/
 
 # Virtual environments
 .venv
-
+.dockerignore
 
 #my files
 2nd_selection/
+/2nd_selection

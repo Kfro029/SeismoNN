@@ -1,57 +1,39 @@
-import os
-import json
-import numpy as np
+from pathlib import Path
 
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import DataLoader
 
 import matplotlib.pyplot as plt
 from sklearn.metrics import accuracy_score, confusion_matrix
 
+from seismonn.data.dataset import SeismoDataset
 
-class SeismoDataset(Dataset):
-    def __init__(self, file_list, root_dir, normalize=True):
-        self.file_list = file_list
-        self.root_dir = root_dir
-        self.normalize = normalize
-        self.label_map = {3: 0, 4: 1, 5: 2}
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+OUTPUT_DIR = PROJECT_ROOT / "outputs"
 
-    def __len__(self):
-        return len(self.file_list)
-
-    def __getitem__(self, idx):
-        filename = self.file_list[idx]
-        path = os.path.join(self.root_dir, filename.replace(".txt", ".npy"))
-
-        x = np.load(path)  # (2, T, 501)
-
-        if self.normalize:
-            mean = x.mean()
-            std = x.std() + 1e-8
-            x = (x - mean) / std
-
-        x = torch.tensor(x, dtype=torch.float32)
-
-        fractures = int(filename.split("_")[-9])
-        y = torch.tensor(self.label_map[fractures], dtype=torch.long)
-
-        return x, y
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
-with open("2nd_sel.json") as f:
-    split = json.load(f)
-train_files = split["train"]
-test_files = split["test"]
+metadata_path = "data/metadata.csv"
+data_root = "."
 
-root_dir = "2nd_sel_comp_npy"
+train_dataset = SeismoDataset(
+    metadata_path=metadata_path,
+    split="train",
+    data_root=data_root,
+    normalize=True,
+)
 
-train_dataset = SeismoDataset(train_files, root_dir)
-test_dataset = SeismoDataset(test_files, root_dir)
+val_dataset = SeismoDataset(
+    metadata_path=metadata_path,
+    split="val",
+    data_root=data_root,
+    normalize=True,
+)
 
 train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True)
-
-test_loader = DataLoader(test_dataset, batch_size=16, shuffle=False)
+val_loader = DataLoader(val_dataset, batch_size=16, shuffle=False)
 
 
 class SeismoCNN(nn.Module):
@@ -135,9 +117,9 @@ def evaluate(model, loader):
 
 train_losses = []
 train_accuracies = []
-test_accuracies = []
+val_accuracies = []
 
-num_epochs = 40
+num_epochs = 2
 
 for epoch in range(num_epochs):
     model.train()
@@ -161,18 +143,18 @@ for epoch in range(num_epochs):
         total_loss += loss.item()
 
     train_acc, _ = evaluate(model, train_loader)
-    test_acc, cm = evaluate(model, test_loader)
+    val_acc, cm = evaluate(model, val_loader)
 
     avg_loss = total_loss / len(train_loader)
 
     train_losses.append(avg_loss)
     train_accuracies.append(train_acc)
-    test_accuracies.append(test_acc)
+    val_accuracies.append(val_acc)
 
     print("\nEpoch {0}".format(epoch + 1))
     print("Loss:", total_loss)
     print("Train acc:", train_acc)
-    print("Test acc:", test_acc)
+    print("Val acc:", val_acc)
 
 print("\nConfusion matrix")
 print(cm)
@@ -183,13 +165,13 @@ sample, _ = train_dataset[0]
 
 plt.figure()
 plt.plot(train_accuracies, label="Train")
-plt.plot(test_accuracies, label="Test")
+plt.plot(val_accuracies, label="Val")
 plt.title("Accuracy")
 plt.xlabel("Epoch")
 plt.ylabel("Accuracy")
 plt.legend()
 plt.grid()
-plt.savefig("accuracy.png")
+plt.savefig(OUTPUT_DIR / "accuracy.png")
 plt.close()
 
 
@@ -200,5 +182,5 @@ torch.save(
         "epoch": epoch,
         "loss": total_loss,
     },
-    "checkpoint.pth",
+    OUTPUT_DIR / "checkpoint.pth",
 )
