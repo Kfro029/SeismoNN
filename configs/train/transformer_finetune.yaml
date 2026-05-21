@@ -12,9 +12,9 @@ data:
   input_shape: [2, 1723, 501]
 
 model:
-  name: masked_trace_transformer
+  name: trace_transformer
   in_channels: 2
-  time_steps: 1723
+  num_classes: 3
   d_model: 64
   nhead: 4
   num_layers: 1
@@ -23,20 +23,33 @@ model:
   temporal_hidden_channels: 16
   max_receivers: 1024
 
+pretrained:
+  enabled: true
+  checkpoint_path: outputs/masked_trace_pretraining/best.pt
+  prefixes:
+    - temporal_encoder.
+    - encoder.
+  min_loaded_keys: 1
+
 optimizer:
   name: adamw
   lr: 0.0003
   weight_decay: 0.0001
 
-pretraining:
-  num_epochs: 1
-  mask_ratio: 0.15
-  metric_to_optimize: val_masked_mse
-  output_dir: outputs/masked_trace_pretraining
+training:
+  num_epochs: 3
+  metric_to_optimize: val_macro_f1
+  output_dir: outputs/trace_transformer_finetuned
+
+checkpoint:
+  class_id_to_crack_count:
+    0: 3
+    1: 4
+    2: 5
 
 tracking:
   enabled: true
   tracking_uri: mlruns
   experiment_name: seismonn
-  run_name: masked_trace_pretraining
+  run_name: trace_transformer_finetuned
   log_artifacts: true

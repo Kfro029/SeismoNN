@@ -622,6 +622,56 @@ metrics.json
 
 Текущая реализация pre-training является первым шагом. Следующий шаг — использовать веса предобученного encoder для supervised fine-tuning на задачу классификации количества трещин.
 
+## Fine-tuning после pre-training
+
+После self-supervised pre-training можно загрузить веса encoder-а в supervised Transformer-классификатор.
+
+Схема:
+
+```text
+outputs/masked_trace_pretraining/best.pt
+  ↓
+temporal_encoder + Transformer encoder weights
+  ↓
+TraceTransformerClassifier
+  ↓
+supervised fine-tuning на crack_count
+```
+
+Запуск fine-tuning:
+
+```bash
+uv run python scripts/train_cnn.py \
+  --config configs/train/transformer_finetune.yaml
+```
+
+Веса загружаются из блока конфига:
+
+```yaml
+pretrained:
+  enabled: true
+  checkpoint_path: outputs/masked_trace_pretraining/best.pt
+  prefixes:
+    - temporal_encoder.
+    - encoder.
+  min_loaded_keys: 1
+```
+
+В fine-tuning checkpoint сохраняется информация о переносе весов:
+
+```text
+pretrained_transfer.json
+```
+
+Текущая реализация переносит только совместимые веса:
+
+```text
+- temporal_encoder.*
+- encoder.*
+```
+
+Голова реконструкции из pre-training не переносится, потому что в supervised задаче используется classification head.
+
 ## 14. Внедрение
 
 Текущие способы использования модели:
@@ -1152,17 +1202,16 @@ MLflow experiment tracking
 Trace Transformer classifier
 Model factory for CNN and Transformer
 Transformer config
+Pretrained encoder loading for Transformer fine-tuning
 ```
 
 ## 29. Что планируется добавить
 
 ```text
-1. Loading pre-trained Transformer encoder weights for supervised fine-tuning.
-
-2. Group split:
+1. Group split:
    более строгая проверка качества без утечки близких конфигураций.
 
-3. Multi-task learning:
+2. Multi-task learning:
    классификация количества трещин + регрессия длины и углов.
 ```
 

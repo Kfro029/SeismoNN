@@ -63,7 +63,9 @@ def apply_receiver_mask(
     batch_size, _channels, _time_steps, receivers = x.shape
 
     if mask.shape != (batch_size, receivers):
-        raise ValueError(f"Expected mask shape {(batch_size, receivers)}, got {mask.shape}")
+        raise ValueError(
+            f"Expected mask shape {(batch_size, receivers)}, got {mask.shape}"
+        )
 
     mask = mask.to(dtype=torch.bool, device=x.device)
 
@@ -93,7 +95,9 @@ def masked_trace_mse_loss(
     batch_size, _channels, _time_steps, receivers = reconstruction.shape
 
     if mask.shape != (batch_size, receivers):
-        raise ValueError(f"Expected mask shape {(batch_size, receivers)}, got {mask.shape}")
+        raise ValueError(
+            f"Expected mask shape {(batch_size, receivers)}, got {mask.shape}"
+        )
 
     mask = mask.to(dtype=torch.bool, device=reconstruction.device)
     mask_4d = mask[:, None, None, :].expand_as(reconstruction)

@@ -23,7 +23,13 @@ from seismonn.training.pretraining import (
     get_pretraining_metric,
     pretrain_one_epoch,
 )
-from seismonn.training.utils import get_device, resolve_path, save_json, set_seed, to_jsonable
+from seismonn.training.utils import (
+    get_device,
+    resolve_path,
+    save_json,
+    set_seed,
+    to_jsonable,
+)
 
 
 def load_config(config_path: str | Path) -> dict[str, Any]:
@@ -55,7 +61,9 @@ def build_optimizer(
     raise ValueError(f"Unsupported optimizer: {optimizer_name}")
 
 
-def create_pretraining_model(model_config: dict[str, Any]) -> MaskedTraceReconstructionTransformer:
+def create_pretraining_model(
+    model_config: dict[str, Any],
+) -> MaskedTraceReconstructionTransformer:
     model_name = str(model_config.get("name", "masked_trace_transformer")).lower()
 
     if model_name != "masked_trace_transformer":
