@@ -27,14 +27,23 @@ def test_evaluate_classifier_returns_metrics():
     assert set(metrics) == {
         "loss",
         "accuracy",
+        "balanced_accuracy",
+        "macro_precision",
+        "macro_recall",
         "macro_f1",
         "confusion_matrix",
         "y_true",
         "y_pred",
     }
+
     assert isinstance(metrics["loss"], float)
+
     assert 0.0 <= metrics["accuracy"] <= 1.0
+    assert 0.0 <= metrics["balanced_accuracy"] <= 1.0
+    assert 0.0 <= metrics["macro_precision"] <= 1.0
+    assert 0.0 <= metrics["macro_recall"] <= 1.0
     assert 0.0 <= metrics["macro_f1"] <= 1.0
+
     assert metrics["confusion_matrix"].shape == (3, 3)
     assert metrics["y_true"].shape == (6,)
     assert metrics["y_pred"].shape == (6,)

@@ -262,8 +262,12 @@ def main() -> None:
             "train_accuracy": train_metrics["accuracy"],
             "val_loss": val_metrics["loss"],
             "val_accuracy": val_metrics["accuracy"],
+            "val_balanced_accuracy": val_metrics["balanced_accuracy"],
+            "val_macro_precision": val_metrics["macro_precision"],
+            "val_macro_recall": val_metrics["macro_recall"],
             "val_macro_f1": val_metrics["macro_f1"],
         }
+
         history.append(row)
 
         print(
@@ -272,6 +276,9 @@ def main() -> None:
             f"train_acc={row['train_accuracy']:.4f} | "
             f"val_loss={row['val_loss']:.4f} | "
             f"val_acc={row['val_accuracy']:.4f} | "
+            f"val_bal_acc={row['val_balanced_accuracy']:.4f} | "
+            f"val_prec={row['val_macro_precision']:.4f} | "
+            f"val_rec={row['val_macro_recall']:.4f} | "
             f"val_macro_f1={row['val_macro_f1']:.4f}"
         )
 
@@ -294,6 +301,9 @@ def main() -> None:
                 "val_metrics": {
                     "loss": val_metrics["loss"],
                     "accuracy": val_metrics["accuracy"],
+                    "balanced_accuracy": val_metrics["balanced_accuracy"],
+                    "macro_precision": val_metrics["macro_precision"],
+                    "macro_recall": val_metrics["macro_recall"],
                     "macro_f1": val_metrics["macro_f1"],
                     "confusion_matrix": val_metrics["confusion_matrix"],
                 },
@@ -334,6 +344,9 @@ def main() -> None:
         "metric_to_optimize": metric_to_optimize,
         "final_val_loss": final_val_metrics["loss"],
         "final_val_accuracy": final_val_metrics["accuracy"],
+        "final_val_balanced_accuracy": final_val_metrics["balanced_accuracy"],
+        "final_val_macro_precision": final_val_metrics["macro_precision"],
+        "final_val_macro_recall": final_val_metrics["macro_recall"],
         "final_val_macro_f1": final_val_metrics["macro_f1"],
         "final_val_confusion_matrix": final_val_metrics["confusion_matrix"],
     }

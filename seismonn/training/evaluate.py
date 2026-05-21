@@ -4,7 +4,14 @@ from typing import Any
 
 import numpy as np
 import torch
-from sklearn.metrics import accuracy_score, confusion_matrix, f1_score
+from sklearn.metrics import (
+    accuracy_score,
+    balanced_accuracy_score,
+    confusion_matrix,
+    f1_score,
+    precision_score,
+    recall_score,
+)
 from torch import nn
 from torch.utils.data import DataLoader
 
@@ -18,8 +25,14 @@ def evaluate_classifier(
 ) -> dict[str, Any]:
     """Evaluate classifier on a dataloader.
 
-    Returns:
-        Dictionary with loss, accuracy, macro_f1 and confusion_matrix.
+    Returned metrics:
+    - loss
+    - accuracy
+    - balanced_accuracy
+    - macro_precision
+    - macro_recall
+    - macro_f1
+    - confusion_matrix
     """
     model.eval()
 
@@ -57,6 +70,13 @@ def evaluate_classifier(
     return {
         "loss": loss_value,
         "accuracy": float(accuracy_score(y_true, y_pred)),
+        "balanced_accuracy": float(balanced_accuracy_score(y_true, y_pred)),
+        "macro_precision": float(
+            precision_score(y_true, y_pred, average="macro", zero_division=0)
+        ),
+        "macro_recall": float(
+            recall_score(y_true, y_pred, average="macro", zero_division=0)
+        ),
         "macro_f1": float(f1_score(y_true, y_pred, average="macro", zero_division=0)),
         "confusion_matrix": confusion_matrix(y_true, y_pred, labels=labels),
         "y_true": np.asarray(y_true),

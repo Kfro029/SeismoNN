@@ -4,6 +4,9 @@
   "metric_to_optimize": "val_macro_f1",
   "final_val_loss": 1.0984194888208145,
   "final_val_accuracy": 0.37593984962406013,
+  "final_val_balanced_accuracy": 0.3333333333333333,
+  "final_val_macro_precision": 0.12531328320802004,
+  "final_val_macro_recall": 0.3333333333333333,
   "final_val_macro_f1": 0.18214936247723135,
   "final_val_confusion_matrix": [
     [

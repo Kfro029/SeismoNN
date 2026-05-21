@@ -981,33 +981,31 @@ Docker deployment
 Pytest tests
 pre-commit checks
 GitHub Actions CI
+Extended classification metrics
 ```
 
 ## 27. Что планируется добавить
 
 ```text
-1. Расширенные метрики:
-   balanced accuracy, macro precision, macro recall.
+1. Inference benchmark:
+   latency p50, latency p95, throughput.
 
 2. Скрипт анализа примера данных:
    shape, dtype, min/max/mean/std, target parameters.
 
-3. Inference benchmark:
-   latency p50, latency p95, throughput.
-
-4. MLflow:
+3. MLflow:
    experiment tracking, logging params/metrics/artifacts.
 
-5. Transformer encoder:
+4. Transformer encoder:
    модель, вдохновлённая StorSeismic.
 
-6. Self-supervised pre-training:
+5. Self-supervised pre-training:
    masked receiver / masked trace reconstruction.
 
-7. Group split:
+6. Group split:
    более строгая проверка качества без утечки близких конфигураций.
 
-8. Multi-task learning:
+7. Multi-task learning:
    классификация количества трещин + регрессия длины и углов.
 ```
 
