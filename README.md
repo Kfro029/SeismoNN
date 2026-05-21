@@ -6,22 +6,53 @@
 
 Краткая обновлённая спецификация проекта находится в [`PROJECT.md`](PROJECT.md). Подробное описание датасета — в [`DATASET.md`](DATASET.md).
 
-Текущая MVP-версия решает задачу **классификации количества трещин** по сейсмограмме:
+## Multi-task baseline: классификация + регрессия
+
+Помимо классификации количества трещин, проект поддерживает multi-task baseline.
+
+Модель одновременно предсказывает:
 
 ```text
-класс 0 → 3 трещины
-класс 1 → 4 трещины
-класс 2 → 5 трещин
+classification:
+- crack_count / class_id
+
+regression:
+- mean_length
+- length_spread
+- mean_angle_deg
+- angle_spread_deg
 ```
 
-В более общей исследовательской постановке проект может быть расширен до multi-task модели, которая одновременно предсказывает:
+Запуск:
+
+```bash
+uv run python scripts/train_multitask.py \
+  --config configs/train/cnn_multitask.yaml
+```
+
+Для регрессии используется нормализация target-переменных по train split. В checkpoint сохраняется `target_scaler`, чтобы потом можно было восстановить предсказания в физических единицах.
+
+Loss:
 
 ```text
-- количество трещин;
-- среднюю длину трещин;
-- разброс длин трещин;
-- средний угол трещин;
-- разброс углов трещин.
+total_loss = classification_loss + regression_loss_weight * regression_loss
+```
+
+Где:
+
+```text
+classification_loss = CrossEntropyLoss
+regression_loss = MSELoss по нормализованным regression targets
+```
+
+Валидационные метрики:
+
+```text
+classification accuracy
+classification macro-F1
+regression MAE в исходных единицах
+regression RMSE в исходных единицах
+per-target MAE/RMSE
 ```
 
 ## 1. Практическая мотивация
@@ -1358,6 +1389,7 @@ Checkpoint evaluation script
 Model cmparison from evaluation reports
 Dataset card / DATASET.md
 Sample visualization script
+CNN multi-task baseline: classification + regression
 ```
 
 ## 29. Что планируется добавить

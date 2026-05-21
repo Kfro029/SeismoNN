@@ -766,6 +766,7 @@ docker build
 - pytest tests;
 - pre-commit;
 - GitHub Actions CI.
+- CNN multi-task baseline: classification + regression.
 ```
 
 ## 22. Ограничения

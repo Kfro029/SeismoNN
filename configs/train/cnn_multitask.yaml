@@ -1,0 +1,52 @@
+seed: 42
+device: auto
+
+data:
+  metadata_path: data/metadata.csv
+  data_root: .
+  train_split: train
+  val_split: val
+  batch_size: 8
+  num_workers: 2
+  normalize: true
+  input_shape: [2, 1723, 501]
+
+model:
+  name: cnn_multitask
+  in_channels: 2
+  num_classes: 3
+  num_regression_targets: 4
+  dropout: 0.2
+
+targets:
+  regression_columns:
+    - mean_length
+    - length_spread
+    - mean_angle_deg
+    - angle_spread_deg
+
+loss:
+  regression_loss_weight: 1.0
+
+optimizer:
+  name: adamw
+  lr: 0.0003
+  weight_decay: 0.0001
+
+training:
+  num_epochs: 3
+  metric_to_optimize: val_classification_macro_f1
+  output_dir: outputs/cnn_multitask
+
+checkpoint:
+  class_id_to_crack_count:
+    0: 3
+    1: 4
+    2: 5
+
+tracking:
+  enabled: true
+  tracking_uri: mlruns
+  experiment_name: seismonn
+  run_name: cnn_multitask
+  log_artifacts: true
