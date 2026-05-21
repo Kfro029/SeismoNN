@@ -996,6 +996,52 @@ uv run pytest
 docker build -t seismonn-api:ci .
 ```
 
+## MLflow tracking
+
+Проект поддерживает логирование экспериментов через MLflow.
+
+MLflow включается в конфиге обучения:
+
+```yaml
+tracking:
+  enabled: true
+  tracking_uri: mlruns
+  experiment_name: seismonn
+  run_name: cnn_baseline
+  log_artifacts: true
+```
+
+При обучении логируются:
+
+```text
+- параметры конфига;
+- train/validation метрики по эпохам;
+- финальные метрики;
+- best.pt и last.pt;
+- history.csv;
+- metrics.json;
+- графики loss, accuracy, macro-F1;
+- confusion_matrix.png.
+```
+
+Запуск обучения:
+
+```bash
+uv run python scripts/train_cnn.py --config configs/train/cnn.yaml
+```
+
+Запуск MLflow UI:
+
+```bash
+uv run mlflow ui --backend-store-uri mlruns
+```
+
+После запуска UI доступен по адресу:
+
+```text
+http://127.0.0.1:5000
+```
+
 ## 27. Структура проекта
 
 ```text
@@ -1052,24 +1098,22 @@ GitHub Actions CI
 Extended classification metrics
 Dataset sample inspection script
 Inference benchmark script
+MLflow experiment tracking
 ```
 
 ## 29. Что планируется добавить
 
 ```text
-1. MLflow:
-   experiment tracking, logging params/metrics/artifacts.
-
-2. Transformer encoder:
+1. Transformer encoder:
    модель, вдохновлённая StorSeismic.
 
-3. Self-supervised pre-training:
+2. Self-supervised pre-training:
    masked receiver / masked trace reconstruction.
 
-4. Group split:
+3. Group split:
    более строгая проверка качества без утечки близких конфигураций.
 
-5. Multi-task learning:
+4. Multi-task learning:
    классификация количества трещин + регрессия длины и углов.
 ```
 
