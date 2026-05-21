@@ -1179,6 +1179,35 @@ supervised Trace Transformer
 fine-tuned Trace Transformer
 ```
 
+## Сравнение нескольких моделей
+
+После сохранения evaluation JSON для разных моделей можно собрать сводную таблицу:
+
+```bash
+uv run python scripts/compare_evaluations.py \
+  --reports \
+    outputs/cnn_baseline/evaluation_val.json \
+    outputs/trace_transformer/evaluation_val.json \
+    outputs/trace_transformer_finetuned/evaluation_val.json \
+  --output-csv outputs/model_comparison.csv \
+  --output-md outputs/model_comparison.md
+```
+
+Если какой-то модели ещё нет, её report можно убрать из списка.
+
+Скрипт строит таблицу с метриками:
+
+```text
+- loss;
+- accuracy;
+- balanced accuracy;
+- macro precision;
+- macro recall;
+- macro-F1.
+```
+
+По умолчанию таблица сортируется по `macro_f1` в порядке убывания.
+
 ## 27. Структура проекта
 
 ```text

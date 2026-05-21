@@ -28,6 +28,7 @@ from seismonn.tracking.mlflow import (
     log_mlflow_params,
     start_mlflow_run,
 )
+from seismonn.training.transfer import maybe_load_pretrained_encoder
 
 
 def load_config(config_path: str | Path) -> dict[str, Any]:
@@ -181,6 +182,7 @@ def main() -> None:
     optimizer_config = config["optimizer"]
     training_config = config["training"]
     tracking_config = config.get("tracking", {})
+    pretrained_config = config.get("pretrained", {})
 
     output_dir = resolve_path(project_root, training_config["output_dir"])
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -219,6 +221,23 @@ def main() -> None:
     )
 
     model = create_model(model_config).to(device)
+
+    transfer_summary = maybe_load_pretrained_encoder(
+        model=model,
+        pretrained_config=pretrained_config,
+        project_root=project_root,
+        device=device,
+    )
+
+    if transfer_summary is not None:
+        print("Loaded pretrained encoder weights.")
+        print(f"Checkpoint: {transfer_summary['checkpoint_path']}")
+        print(f"Loaded keys: {transfer_summary['loaded_key_count']}")
+
+        save_json(
+            to_jsonable(transfer_summary),
+            output_dir / "pretrained_transfer.json",
+        )
 
     criterion = nn.CrossEntropyLoss()
     optimizer = build_optimizer(model, optimizer_config)
@@ -313,6 +332,7 @@ def main() -> None:
                     "model_state_dict": model.state_dict(),
                     "model_config": model_config,
                     "data_config": data_config,
+                    "pretrained": transfer_summary,
                     "epoch": epoch,
                     "metric_to_optimize": metric_to_optimize,
                     "best_metric": best_metric,
@@ -347,6 +367,7 @@ def main() -> None:
             "model_state_dict": model.state_dict(),
             "model_config": model_config,
             "data_config": data_config,
+            "pretrained": transfer_summary,
             "epoch": num_epochs,
             "input_shape": data_config["input_shape"],
             "class_id_to_crack_count": config["checkpoint"]["class_id_to_crack_count"],

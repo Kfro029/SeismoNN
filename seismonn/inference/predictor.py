@@ -7,7 +7,7 @@ from typing import Any
 import numpy as np
 import torch
 
-from seismonn.models.cnn import SeismoCNN
+from seismonn.models.factory import create_model
 from seismonn.training.utils import get_device
 
 
@@ -77,11 +77,7 @@ class SeismoPredictor:
         if not isinstance(model_config, dict):
             raise ValueError("Checkpoint field 'model_config' must be a dictionary.")
 
-        model = SeismoCNN(
-            in_channels=int(model_config.get("in_channels", 2)),
-            num_classes=int(model_config.get("num_classes", 3)),
-            dropout=float(model_config.get("dropout", 0.0)),
-        )
+        model = create_model(model_config)
 
         if "model_state_dict" not in checkpoint:
             raise ValueError("Checkpoint does not contain 'model_state_dict'.")

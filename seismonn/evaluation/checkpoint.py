@@ -26,8 +26,7 @@ def normalize_class_mapping(raw_mapping: dict[Any, Any] | None) -> dict[int, int
         }
 
     return {
-        int(class_id): int(crack_count)
-        for class_id, crack_count in raw_mapping.items()
+        int(class_id): int(crack_count) for class_id, crack_count in raw_mapping.items()
     }
 
 
