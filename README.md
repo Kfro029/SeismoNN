@@ -578,6 +578,50 @@ R — receiver positions
 
 Такая схема полезна, потому что полевые данные могут быть неразмеченными, но всё равно могут использоваться для self-supervised обучения.
 
+## Self-supervised pre-training
+
+В проект добавлен экспериментальный pipeline self-supervised pre-training для Transformer.
+
+Задача pre-training:
+
+```text
+masked trace reconstruction
+```
+
+Идея:
+
+```text
+1. Берётся сейсмограмма x с формой [B, 2, T, R].
+2. Случайно маскируется часть receiver-трасс.
+3. Transformer получает повреждённый вход.
+4. Модель восстанавливает исходные трассы.
+5. MSE loss считается только на замаскированных receiver-трассах.
+```
+
+Запуск:
+
+```bash
+uv run python scripts/pretrain_transformer.py \
+  --config configs/pretrain/trace_transformer.yaml
+```
+
+Артефакты сохраняются в:
+
+```text
+outputs/masked_trace_pretraining/
+```
+
+Основные артефакты:
+
+```text
+best.pt
+last.pt
+history.csv
+metrics.json
+```
+
+Текущая реализация pre-training является первым шагом. Следующий шаг — использовать веса предобученного encoder для supervised fine-tuning на задачу классификации количества трещин.
+
 ## 14. Внедрение
 
 Текущие способы использования модели:
@@ -1113,8 +1157,7 @@ Transformer config
 ## 29. Что планируется добавить
 
 ```text
-1. Self-supervised pre-training:
-   masked receiver / masked trace reconstruction.
+1. Loading pre-trained Transformer encoder weights for supervised fine-tuning.
 
 2. Group split:
    более строгая проверка качества без утечки близких конфигураций.
