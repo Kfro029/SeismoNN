@@ -2,6 +2,8 @@
 
 **SeismoNN** — учебно-исследовательский MLOps-проект для предсказания параметров трещиноватой среды по синтетическим сейсмическим данным.
 
+Подробное описание датасета, его ограничений и процедуры валидации находится в файле [`DATASET.md`](DATASET.md).
+
 Текущая MVP-версия решает задачу **классификации количества трещин** по сейсмограмме:
 
 ```text
@@ -1316,6 +1318,7 @@ Transformer config
 Pretrained encoder loading for Transformer fine-tuning
 Checkpoint evaluation script
 Model cmparison from evaluation reports
+Dataset card / DATASET.md
 ```
 
 ## 29. Что планируется добавить
