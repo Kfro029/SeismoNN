@@ -1142,6 +1142,43 @@ uv run mlflow ui --backend-store-uri mlruns
 http://127.0.0.1:5000
 ```
 
+## Оценка сохранённого checkpoint
+
+Для независимой оценки сохранённой модели используется скрипт:
+
+```bash
+uv run python scripts/evaluate_checkpoint.py \
+  --checkpoint outputs/cnn_baseline/best.pt \
+  --metadata data/metadata.csv \
+  --split val \
+  --batch-size 16 \
+  --device cpu \
+  --output outputs/cnn_baseline/evaluation_val.json
+```
+
+Скрипт загружает checkpoint, восстанавливает модель по `model_config`, создаёт `SeismoDataset` для выбранного split и считает метрики классификации.
+
+В отчёт входят:
+
+```text
+- loss;
+- accuracy;
+- balanced accuracy;
+- macro precision;
+- macro recall;
+- macro-F1;
+- confusion matrix;
+- classification report по классам 3 / 4 / 5.
+```
+
+Такой скрипт позволяет одинаково оценивать разные модели:
+
+```text
+CNN baseline
+supervised Trace Transformer
+fine-tuned Trace Transformer
+```
+
 ## 27. Структура проекта
 
 ```text
@@ -1203,6 +1240,7 @@ Trace Transformer classifier
 Model factory for CNN and Transformer
 Transformer config
 Pretrained encoder loading for Transformer fine-tuning
+Checkpoint evaluation script
 ```
 
 ## 29. Что планируется добавить
