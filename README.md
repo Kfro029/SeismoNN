@@ -531,9 +531,15 @@ outputs/cnn_baseline/confusion_matrix.png
 
 Директория `outputs/` не коммитится в git.
 
-## 13. Планируемая основная модель: Transformer encoder
+## 13. Transformer encoder model
 
-Планируемая основная модель вдохновлена статьёй:
+В проект добавлена supervised Transformer encoder модель `trace_transformer`.
+
+Она вдохновлена идеей StorSeismic: сейсмические трассы рассматриваются как последовательность токенов, а self-attention моделирует зависимости между receiver-трассами.
+
+Текущая реализация пока не включает self-supervised pre-training. Сейчас Transformer обучается supervised способом на задачу классификации количества трещин.
+
+Модель вдохновлена статьёй:
 
 ```text
 StorSeismic: A new paradigm in deep learning for seismic processing
@@ -1099,21 +1105,21 @@ Extended classification metrics
 Dataset sample inspection script
 Inference benchmark script
 MLflow experiment tracking
+Trace Transformer classifier
+Model factory for CNN and Transformer
+Transformer config
 ```
 
 ## 29. Что планируется добавить
 
 ```text
-1. Transformer encoder:
-   модель, вдохновлённая StorSeismic.
-
-2. Self-supervised pre-training:
+1. Self-supervised pre-training:
    masked receiver / masked trace reconstruction.
 
-3. Group split:
+2. Group split:
    более строгая проверка качества без утечки близких конфигураций.
 
-4. Multi-task learning:
+3. Multi-task learning:
    классификация количества трещин + регрессия длины и углов.
 ```
 

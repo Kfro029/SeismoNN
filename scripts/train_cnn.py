@@ -12,7 +12,7 @@ from torch import nn
 from torch.utils.data import DataLoader
 
 from seismonn.data.dataset import SeismoDataset
-from seismonn.models.cnn import SeismoCNN
+from seismonn.models.factory import create_model
 from seismonn.training.evaluate import evaluate_classifier
 from seismonn.training.utils import (
     get_device,
@@ -218,11 +218,7 @@ def main() -> None:
         pin_memory=device.type == "cuda",
     )
 
-    model = SeismoCNN(
-        in_channels=int(model_config["in_channels"]),
-        num_classes=int(model_config["num_classes"]),
-        dropout=float(model_config["dropout"]),
-    ).to(device)
+    model = create_model(model_config).to(device)
 
     criterion = nn.CrossEntropyLoss()
     optimizer = build_optimizer(model, optimizer_config)
