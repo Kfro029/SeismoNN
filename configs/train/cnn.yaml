@@ -32,3 +32,10 @@ checkpoint:
     0: 3
     1: 4
     2: 5
+
+tracking:
+  enabled: true
+  tracking_uri: mlruns
+  experiment_name: seismonn
+  run_name: cnn_baseline
+  log_artifacts: true

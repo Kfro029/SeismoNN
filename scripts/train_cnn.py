@@ -21,6 +21,13 @@ from seismonn.training.utils import (
     set_seed,
     to_jsonable,
 )
+from seismonn.tracking.mlflow import (
+    is_mlflow_enabled,
+    log_mlflow_artifacts,
+    log_mlflow_metrics,
+    log_mlflow_params,
+    start_mlflow_run,
+)
 
 
 def load_config(config_path: str | Path) -> dict[str, Any]:
@@ -173,6 +180,7 @@ def main() -> None:
     model_config = config["model"]
     optimizer_config = config["optimizer"]
     training_config = config["training"]
+    tracking_config = config.get("tracking", {})
 
     output_dir = resolve_path(project_root, training_config["output_dir"])
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -233,83 +241,101 @@ def main() -> None:
 
     labels = list(range(int(model_config["num_classes"])))
 
-    for epoch in range(1, num_epochs + 1):
-        train_metrics = train_one_epoch(
-            model=model,
-            dataloader=train_loader,
-            criterion=criterion,
-            optimizer=optimizer,
-            device=device,
-        )
+    with start_mlflow_run(project_root=project_root, tracking_config=tracking_config):
+        if is_mlflow_enabled(tracking_config):
+            log_mlflow_params(config)
+        for epoch in range(1, num_epochs + 1):
+            train_metrics = train_one_epoch(
+                model=model,
+                dataloader=train_loader,
+                criterion=criterion,
+                optimizer=optimizer,
+                device=device,
+            )
 
-        val_metrics = evaluate_classifier(
-            model=model,
-            dataloader=val_loader,
-            criterion=criterion,
-            device=device,
-            labels=labels,
-        )
+            val_metrics = evaluate_classifier(
+                model=model,
+                dataloader=val_loader,
+                criterion=criterion,
+                device=device,
+                labels=labels,
+            )
 
-        current_metric = get_optimized_metric(
-            metric_name=metric_to_optimize,
-            train_metrics=train_metrics,
-            val_metrics=val_metrics,
-        )
+            current_metric = get_optimized_metric(
+                metric_name=metric_to_optimize,
+                train_metrics=train_metrics,
+                val_metrics=val_metrics,
+            )
 
-        row = {
-            "epoch": epoch,
-            "train_loss": train_metrics["loss"],
-            "train_accuracy": train_metrics["accuracy"],
-            "val_loss": val_metrics["loss"],
-            "val_accuracy": val_metrics["accuracy"],
-            "val_balanced_accuracy": val_metrics["balanced_accuracy"],
-            "val_macro_precision": val_metrics["macro_precision"],
-            "val_macro_recall": val_metrics["macro_recall"],
-            "val_macro_f1": val_metrics["macro_f1"],
-        }
-
-        history.append(row)
-
-        print(
-            f"Epoch {epoch:03d}/{num_epochs:03d} | "
-            f"train_loss={row['train_loss']:.4f} | "
-            f"train_acc={row['train_accuracy']:.4f} | "
-            f"val_loss={row['val_loss']:.4f} | "
-            f"val_acc={row['val_accuracy']:.4f} | "
-            f"val_bal_acc={row['val_balanced_accuracy']:.4f} | "
-            f"val_prec={row['val_macro_precision']:.4f} | "
-            f"val_rec={row['val_macro_recall']:.4f} | "
-            f"val_macro_f1={row['val_macro_f1']:.4f}"
-        )
-
-        if current_metric > best_metric:
-            best_metric = current_metric
-            best_epoch = epoch
-
-            checkpoint = {
-                "model_name": model_config["name"],
-                "model_state_dict": model.state_dict(),
-                "model_config": model_config,
-                "data_config": data_config,
+            row = {
                 "epoch": epoch,
-                "metric_to_optimize": metric_to_optimize,
-                "best_metric": best_metric,
-                "input_shape": data_config["input_shape"],
-                "class_id_to_crack_count": config["checkpoint"][
-                    "class_id_to_crack_count"
-                ],
-                "val_metrics": {
-                    "loss": val_metrics["loss"],
-                    "accuracy": val_metrics["accuracy"],
-                    "balanced_accuracy": val_metrics["balanced_accuracy"],
-                    "macro_precision": val_metrics["macro_precision"],
-                    "macro_recall": val_metrics["macro_recall"],
-                    "macro_f1": val_metrics["macro_f1"],
-                    "confusion_matrix": val_metrics["confusion_matrix"],
-                },
+                "train_loss": train_metrics["loss"],
+                "train_accuracy": train_metrics["accuracy"],
+                "val_loss": val_metrics["loss"],
+                "val_accuracy": val_metrics["accuracy"],
+                "val_balanced_accuracy": val_metrics["balanced_accuracy"],
+                "val_macro_precision": val_metrics["macro_precision"],
+                "val_macro_recall": val_metrics["macro_recall"],
+                "val_macro_f1": val_metrics["macro_f1"],
             }
 
-            torch.save(checkpoint, output_dir / "best.pt")
+            history.append(row)
+
+            print(
+                f"Epoch {epoch:03d}/{num_epochs:03d} | "
+                f"train_loss={row['train_loss']:.4f} | "
+                f"train_acc={row['train_accuracy']:.4f} | "
+                f"val_loss={row['val_loss']:.4f} | "
+                f"val_acc={row['val_accuracy']:.4f} | "
+                f"val_bal_acc={row['val_balanced_accuracy']:.4f} | "
+                f"val_prec={row['val_macro_precision']:.4f} | "
+                f"val_rec={row['val_macro_recall']:.4f} | "
+                f"val_macro_f1={row['val_macro_f1']:.4f}"
+            )
+
+            if is_mlflow_enabled(tracking_config):
+                log_mlflow_metrics(
+                    {
+                        "train_loss": row["train_loss"],
+                        "train_accuracy": row["train_accuracy"],
+                        "val_loss": row["val_loss"],
+                        "val_accuracy": row["val_accuracy"],
+                        "val_balanced_accuracy": row["val_balanced_accuracy"],
+                        "val_macro_precision": row["val_macro_precision"],
+                        "val_macro_recall": row["val_macro_recall"],
+                        "val_macro_f1": row["val_macro_f1"],
+                    },
+                    step=epoch,
+                )
+
+            if current_metric > best_metric:
+                best_metric = current_metric
+                best_epoch = epoch
+
+                checkpoint = {
+                    "model_name": model_config["name"],
+                    "model_state_dict": model.state_dict(),
+                    "model_config": model_config,
+                    "data_config": data_config,
+                    "epoch": epoch,
+                    "metric_to_optimize": metric_to_optimize,
+                    "best_metric": best_metric,
+                    "input_shape": data_config["input_shape"],
+                    "class_id_to_crack_count": config["checkpoint"][
+                        "class_id_to_crack_count"
+                    ],
+                    "val_metrics": {
+                        "loss": val_metrics["loss"],
+                        "accuracy": val_metrics["accuracy"],
+                        "balanced_accuracy": val_metrics["balanced_accuracy"],
+                        "macro_precision": val_metrics["macro_precision"],
+                        "macro_recall": val_metrics["macro_recall"],
+                        "macro_f1": val_metrics["macro_f1"],
+                        "confusion_matrix": val_metrics["confusion_matrix"],
+                    },
+                }
+
+                torch.save(checkpoint, output_dir / "best.pt")
 
     final_val_metrics = evaluate_classifier(
         model=model,
@@ -352,6 +378,23 @@ def main() -> None:
     }
 
     save_json(to_jsonable(metrics), output_dir / "metrics.json")
+
+    if is_mlflow_enabled(tracking_config):
+        log_mlflow_metrics(
+            {
+                "best_metric": float(best_metric),
+                "final_val_loss": final_val_metrics["loss"],
+                "final_val_accuracy": final_val_metrics["accuracy"],
+                "final_val_balanced_accuracy": final_val_metrics["balanced_accuracy"],
+                "final_val_macro_precision": final_val_metrics["macro_precision"],
+                "final_val_macro_recall": final_val_metrics["macro_recall"],
+                "final_val_macro_f1": final_val_metrics["macro_f1"],
+            },
+            step=num_epochs,
+        )
+
+        if bool(tracking_config.get("log_artifacts", True)):
+            log_mlflow_artifacts(output_dir)
 
     print("Training finished.")
     print(f"Best epoch: {best_epoch}")
