@@ -806,6 +806,51 @@ print(df["shape"].value_counts())
 PY
 ```
 
+## Валидация metadata и датасета
+
+Для проверки структуры `metadata.csv` используется скрипт:
+
+```bash
+uv run python scripts/validate_metadata.py \
+  --metadata data/metadata.csv \
+  --data-root . \
+  --expected-shape 2 1723 501 \
+  --expected-dtype float32 \
+  --expected-splits train val
+```
+
+Скрипт проверяет:
+
+```text
+- наличие обязательных колонок;
+- отсутствие дубликатов sample_id, path, filename;
+- корректность split;
+- соответствие class_id и crack_count;
+- shape из metadata.csv;
+- dtype из metadata.csv.
+```
+
+Если локально доступна директория с `.npy` файлами, можно проверить сами файлы:
+
+```bash
+uv run python scripts/validate_metadata.py \
+  --metadata data/metadata.csv \
+  --data-root . \
+  --expected-shape 2 1723 501 \
+  --expected-dtype float32 \
+  --expected-splits train val \
+  --validate-files \
+  --output outputs/metadata_validation.json
+```
+
+В режиме `--validate-files` дополнительно проверяется:
+
+```text
+- существование каждого .npy файла;
+- реальный shape массива;
+- реальный dtype массива.
+```
+
 ## 18. Анализ одного примера данных
 
 Для просмотра конкретного объекта из `metadata.csv` можно использовать:
