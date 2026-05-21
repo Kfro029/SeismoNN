@@ -108,7 +108,9 @@ def select_metadata_row(
         index = 0
 
     if index < 0 or index >= len(metadata):
-        raise IndexError(f"index={index} is out of range for metadata with {len(metadata)} rows.")
+        raise IndexError(
+            f"index={index} is out of range for metadata with {len(metadata)} rows."
+        )
 
     return metadata.iloc[index]
 
@@ -147,7 +149,9 @@ def inspect_sample(
         raise ValueError("metadata.csv must contain column 'path'.")
 
     relative_path = Path(str(row["path"]))
-    full_path = relative_path if relative_path.is_absolute() else data_root / relative_path
+    full_path = (
+        relative_path if relative_path.is_absolute() else data_root / relative_path
+    )
 
     if not full_path.exists():
         raise FileNotFoundError(f"Sample file does not exist: {full_path}")
@@ -177,10 +181,14 @@ def inspect_sample(
     }
 
     result = {
-        "sample_id": _format_sample_id(row["sample_id"]) if "sample_id" in row.index else None,
+        "sample_id": _format_sample_id(row["sample_id"])
+        if "sample_id" in row.index
+        else None,
         "path": str(relative_path),
         "absolute_path": str(full_path.resolve()),
-        "filename": str(row["filename"]) if "filename" in row.index else relative_path.name,
+        "filename": str(row["filename"])
+        if "filename" in row.index
+        else relative_path.name,
         "split": str(row["split"]) if "split" in row.index else None,
         "target": target,
         "fracture_parameters": fracture_parameters,

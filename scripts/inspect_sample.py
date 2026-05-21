@@ -51,7 +51,11 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    index = None if args.sample_id is not None or args.sample_path is not None else args.index
+    index = (
+        None
+        if args.sample_id is not None or args.sample_path is not None
+        else args.index
+    )
 
     result = inspect_sample(
         metadata_path=args.metadata,

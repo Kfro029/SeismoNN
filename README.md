@@ -886,7 +886,41 @@ docker run -d --name seismonn-api \
 docker stop seismonn-api
 ```
 
-## 23. Тесты
+## 23. Benchmark инференса
+
+Для оценки скорости инференса используется скрипт:
+
+```bash
+uv run python scripts/benchmark_inference.py \
+  --checkpoint outputs/cnn_baseline/best.pt \
+  --input 2nd_selection/<sample_name>.npy \
+  --device cpu \
+  --warmup-runs 3 \
+  --timed-runs 20 \
+  --output outputs/inference_benchmark.json
+```
+
+Скрипт измеряет два режима:
+
+```text
+model_only — только forward pass модели на заранее загруженном tensor;
+end_to_end — загрузка .npy, preprocessing, inference и формирование JSON-ответа.
+```
+
+Для каждого режима сохраняются:
+
+```text
+mean latency
+std latency
+min latency
+p50 latency
+p95 latency
+p99 latency
+max latency
+throughput samples/sec
+```
+
+## 24. Тесты
 
 Запуск всех тестов:
 
@@ -908,7 +942,7 @@ uv run pytest \
 
 Тесты не требуют полного датасета. Для unit-тестов используются маленькие синтетические `.npy` массивы.
 
-## 24. Code quality и pre-commit
+## 25. Code quality и pre-commit
 
 Запуск pre-commit:
 
@@ -933,7 +967,7 @@ end-of-file-fixer
 check-yaml
 ```
 
-## 25. Continuous Integration
+## 26. Continuous Integration
 
 Проект использует GitHub Actions для CI.
 
@@ -962,7 +996,7 @@ uv run pytest
 docker build -t seismonn-api:ci .
 ```
 
-## 26. Структура проекта
+## 27. Структура проекта
 
 ```text
 SeismoNN/
@@ -998,7 +1032,7 @@ SeismoNN/
 └── README.md
 ```
 
-## 27. Что уже реализовано
+## 28. Что уже реализовано
 
 ```text
 Metadata-based dataset description
@@ -1017,31 +1051,29 @@ pre-commit checks
 GitHub Actions CI
 Extended classification metrics
 Dataset sample inspection script
+Inference benchmark script
 ```
 
-## 28. Что планируется добавить
+## 29. Что планируется добавить
 
 ```text
-1. Inference benchmark:
-   latency p50, latency p95, throughput.
-
-2. MLflow:
+1. MLflow:
    experiment tracking, logging params/metrics/artifacts.
 
-3. Transformer encoder:
+2. Transformer encoder:
    модель, вдохновлённая StorSeismic.
 
-4. Self-supervised pre-training:
+3. Self-supervised pre-training:
    masked receiver / masked trace reconstruction.
 
-5. Group split:
+4. Group split:
    более строгая проверка качества без утечки близких конфигураций.
 
-6. Multi-task learning:
+5. Multi-task learning:
    классификация количества трещин + регрессия длины и углов.
 ```
 
-## 29. Ограничения текущей версии
+## 30. Ограничения текущей версии
 
 ```text
 - Данные синтетические.
@@ -1053,7 +1085,7 @@ Dataset sample inspection script
 - Latency/throughput пока не измеряются отдельным benchmark-скриптом.
 ```
 
-## 30. Краткий вывод
+## 31. Краткий вывод
 
 Текущая версия SeismoNN — это воспроизводимый MLOps baseline для задачи классификации количества трещин по синтетическим сейсмограммам.
 
