@@ -641,7 +641,7 @@ supervised fine-tuning на crack_count
 Запуск fine-tuning:
 
 ```bash
-uv run python scripts/train_cnn.py \
+uv run python scripts/train.py \
   --config configs/train/transformer_finetune.yaml
 ```
 
@@ -845,7 +845,7 @@ uv run python scripts/inspect_sample.py \
 Запуск обучения:
 
 ```bash
-uv run python scripts/train_cnn.py --config configs/train/cnn.yaml
+uv run python scripts/train.py --config configs/train/cnn.yaml
 ```
 
 Конфиг обучения:
@@ -1127,7 +1127,7 @@ tracking:
 Запуск обучения:
 
 ```bash
-uv run python scripts/train_cnn.py --config configs/train/cnn.yaml
+uv run python scripts/train.py --config configs/train/cnn.yaml
 ```
 
 Запуск MLflow UI:
@@ -1222,7 +1222,7 @@ SeismoNN/
 │   ├── build_metadata.py
 │   ├── create_split.py
 │   ├── predict.py
-│   └── train_cnn.py
+│   └── train.py
 ├── seismonn/
 │   ├── api/
 │   │   └── main.py
@@ -1270,6 +1270,7 @@ Model factory for CNN and Transformer
 Transformer config
 Pretrained encoder loading for Transformer fine-tuning
 Checkpoint evaluation script
+Model cmparison from evaluation reports
 ```
 
 ## 29. Что планируется добавить
