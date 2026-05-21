@@ -13,3 +13,11 @@ wheels/
 #my files
 2nd_selection/
 /2nd_selection
+
+
+outputs/
+checkpints/
+mlruns/
+*.pt
+*.pth
+*.ckpt
