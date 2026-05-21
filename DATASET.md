@@ -379,6 +379,36 @@ uv run python scripts/inspect_sample.py \
   --output outputs/sample_inspection.json
 ```
 
+## Визуализация одного объекта
+
+Для построения heatmap компонент скорости и receiver trace используется команда:
+
+```bash
+uv run python scripts/visualize_sample.py \
+  --metadata data/metadata.csv \
+  --data-root . \
+  --index 0 \
+  --output-dir outputs/sample_visualization
+```
+
+На выходе создаются:
+
+```text
+vx_heatmap.png
+vy_heatmap.png
+vx_receiver_trace.png
+vy_receiver_trace.png
+sample_info.json
+```
+
+Назначение:
+
+```text
+- визуальная проверка формы данных;
+- проверка наличия осмысленной структуры в сейсмограмме;
+- подготовка примеров для README, отчёта или презентации.
+```
+
 ## 13. Особенности данных
 
 Основные особенности:

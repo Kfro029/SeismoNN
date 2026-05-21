@@ -887,6 +887,42 @@ uv run python scripts/inspect_sample.py \
   --output outputs/sample_inspection.json
 ```
 
+## Визуализация одного примера данных
+
+Для визуальной проверки сейсмограммы можно использовать:
+
+```bash
+uv run python scripts/visualize_sample.py \
+  --metadata data/metadata.csv \
+  --data-root . \
+  --index 0 \
+  --output-dir outputs/sample_visualization
+```
+
+Скрипт сохраняет:
+
+```text
+vx_heatmap.png
+vy_heatmap.png
+vx_receiver_trace.png
+vy_receiver_trace.png
+sample_info.json
+```
+
+Также можно ограничить число временных шагов и receiver positions только для построения графиков:
+
+```bash
+uv run python scripts/visualize_sample.py \
+  --metadata data/metadata.csv \
+  --data-root . \
+  --index 0 \
+  --output-dir outputs/sample_visualization_small \
+  --max-time-steps 400 \
+  --max-receivers 200
+```
+
+Эта визуализация нужна для sanity-check данных и демонстрации конкретного входного объекта.
+
 ## 19. Обучение CNN baseline
 
 Запуск обучения:
@@ -1319,6 +1355,7 @@ Pretrained encoder loading for Transformer fine-tuning
 Checkpoint evaluation script
 Model cmparison from evaluation reports
 Dataset card / DATASET.md
+Sample visualization script
 ```
 
 ## 29. Что планируется добавить
