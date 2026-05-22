@@ -9,16 +9,18 @@ from typing import Any
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 
-from seismonn.inference.predictor import SeismoPredictor
+from seismonn.inference.factory import create_predictor
 
 
 DEFAULT_CHECKPOINT_PATH = "outputs/cnn_baseline/best.pt"
 DEFAULT_DEVICE = "auto"
+DEFAULT_PREDICTOR_TYPE = "auto"
 
 
 def create_app(
     checkpoint_path: str | Path | None = None,
     device_name: str | None = None,
+    predictor_type: str | None = None,
 ) -> FastAPI:
     """Create FastAPI application for SeismoNN inference."""
 
@@ -26,6 +28,10 @@ def create_app(
         checkpoint_path or os.getenv("SEISMONN_CHECKPOINT", DEFAULT_CHECKPOINT_PATH)
     )
     resolved_device_name = device_name or os.getenv("SEISMONN_DEVICE", DEFAULT_DEVICE)
+    resolved_predictor_type = predictor_type or os.getenv(
+        "SEISMONN_PREDICTOR_TYPE",
+        DEFAULT_PREDICTOR_TYPE,
+    )
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -33,12 +39,20 @@ def create_app(
         app.state.startup_error = None
         app.state.checkpoint_path = str(resolved_checkpoint_path)
         app.state.device_name = resolved_device_name
+        app.state.predictor_type = None
+        app.state.model_name = None
+        app.state.requested_predictor_type = resolved_predictor_type
 
         try:
-            app.state.predictor = SeismoPredictor.from_checkpoint(
+            loaded_predictor = create_predictor(
                 checkpoint_path=resolved_checkpoint_path,
                 device_name=resolved_device_name,
+                predictor_type=resolved_predictor_type,
             )
+
+            app.state.predictor = loaded_predictor.predictor
+            app.state.predictor_type = loaded_predictor.predictor_type
+            app.state.model_name = loaded_predictor.model_name
         except Exception as exc:  # noqa: BLE001
             app.state.startup_error = str(exc)
 
@@ -61,6 +75,9 @@ def create_app(
             "checkpoint_path": app.state.checkpoint_path,
             "device": app.state.device_name,
             "startup_error": app.state.startup_error,
+            "predictor_type": app.state.predictor_type,
+            "requested_predictor_type": app.state.requested_predictor_type,
+            "model_name": app.state.model_name,
         }
 
     @app.post("/predict")

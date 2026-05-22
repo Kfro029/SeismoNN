@@ -769,6 +769,7 @@ docker build
 - CNN multi-task baseline: classification + regression.
 - multi-task inference: JSON с predicted_crack_count и регрессионными параметрами среды.
 - оценка multi-task checkpoint с classification и regression metrics.
+- FastAPI-сервис поддерживает как classification checkpoint, так и multi-task checkpoint. Тип predictor определяется автоматически по model_config.name.
 ```
 
 ## 22. Ограничения
