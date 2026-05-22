@@ -171,7 +171,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    project_root = Path(__file__).resolve().parents[1]
+    project_root = Path(__file__).resolve().parents[2]
     config = load_config(args.config)
 
     set_seed(int(config["seed"]))
