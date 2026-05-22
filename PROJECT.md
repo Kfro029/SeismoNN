@@ -592,6 +592,10 @@ uv run python scripts/compare_evaluations.py \
 
 ## 17. Внедрение
 
+Форматы модели:
+- PyTorch checkpoint: best.pt / last.pt;
+- TorchScript export: model_torchscript.pt.
+
 Реализованные способы использования модели:
 
 ```text
@@ -770,6 +774,8 @@ docker build
 - multi-task inference: JSON с predicted_crack_count и регрессионными параметрами среды.
 - оценка multi-task checkpoint с classification и regression metrics.
 - FastAPI-сервис поддерживает как classification checkpoint, так и multi-task checkpoint. Тип predictor определяется автоматически по model_config.name.
+- TorchScript export для classification и multi-task моделей.
+- Makefile с основными командами для тестов, обучения, inference, API, Docker, MLflow и экспорта.
 ```
 
 ## 22. Ограничения

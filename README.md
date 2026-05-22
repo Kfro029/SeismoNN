@@ -900,6 +900,102 @@ uv sync --all-extras --dev
 
 Все команды рекомендуется запускать из корня репозитория.
 
+## Makefile
+
+Для удобства основные команды проекта вынесены в `Makefile`.
+
+Показать список доступных команд:
+
+```bash
+make help
+```
+
+Установка зависимостей:
+
+```bash
+make sync
+```
+
+Тесты и проверки качества кода:
+
+```bash
+make test
+make lint
+make check
+```
+
+Работа с данными:
+
+```bash
+make validate-metadata
+make validate-files
+make inspect-sample
+make visualize-sample
+```
+
+Обучение моделей:
+
+```bash
+make train-cnn
+make train-transformer
+make pretrain-transformer
+make train-transformer-finetuned
+make train-multitask
+```
+
+Оценка моделей:
+
+```bash
+make evaluate-cnn
+make evaluate-transformer
+make evaluate-transformer-finetuned
+make evaluate-multitask
+make compare
+```
+
+Inference:
+
+```bash
+make predict
+make predict-multitask
+```
+
+FastAPI:
+
+```bash
+make api
+make api-multitask
+```
+
+Docker:
+
+```bash
+make docker-build
+make docker-run
+make docker-run-multitask
+```
+
+MLflow:
+
+```bash
+make mlflow-ui
+```
+
+TorchScript export:
+
+```bash
+make export-torchscript-cnn
+make export-torchscript-multitask
+```
+
+Некоторые цели используют переменные, которые можно переопределить:
+
+```bash
+make predict SAMPLE=2nd_selection/<sample_name>.npy
+make api PORT=8080 DEVICE=cpu
+make evaluate-cnn CNN_CKPT=outputs/cnn_baseline_50ep/best.pt
+```
+
 ## 17. Генерация metadata.csv
 
 Если доступны `2nd_sel.json` и директория `2nd_selection/`, metadata можно пересоздать командой:
