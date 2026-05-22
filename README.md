@@ -97,6 +97,54 @@ E[crack_count] = 3 * P(3) + 4 * P(4) + 5 * P(5)
 
 Регрессионные значения возвращаются в исходных физических единицах, потому что в checkpoint сохраняется `target_scaler`.
 
+## Multi-task checkpoint evaluation
+
+Для оценки multi-task модели на validation split используется:
+
+```bash
+uv run python scripts/evaluate_multitask_checkpoint.py \
+  --checkpoint outputs/cnn_multitask_50ep/best.pt \
+  --metadata data/metadata.csv \
+  --split val \
+  --batch-size 8 \
+  --device cpu \
+  --output outputs/cnn_multitask_50ep/evaluation_val.json
+```
+
+Отчёт содержит классификационные метрики:
+
+```text
+accuracy
+balanced accuracy
+macro precision
+macro recall
+macro-F1
+confusion matrix
+classification report
+```
+
+И регрессионные метрики:
+
+```text
+mean MAE
+mean RMSE
+per-target MAE/RMSE:
+  mean_length
+  length_spread
+  mean_angle_deg
+  angle_spread_deg
+```
+
+Такой отчёт можно использовать в `scripts/compare_evaluations.py`, потому что для классификационной части в JSON также сохраняются alias-поля:
+
+```text
+accuracy
+balanced_accuracy
+macro_precision
+macro_recall
+macro_f1
+```
+
 ## 1. Практическая мотивация
 
 Трещиноватые среды встречаются в задачах геофизики, инженерной геологии и анализа подземных структур. Наличие, ориентация и характер трещин могут влиять на распространение волн в среде. Поэтому по сейсмическому отклику можно пытаться восстанавливать параметры среды.

@@ -23,8 +23,7 @@ def normalize_class_mapping(raw_mapping: dict[Any, Any] | None) -> dict[int, int
         }
 
     return {
-        int(class_id): int(crack_count)
-        for class_id, crack_count in raw_mapping.items()
+        int(class_id): int(crack_count) for class_id, crack_count in raw_mapping.items()
     }
 
 
@@ -51,7 +50,9 @@ class SeismoMultiTaskPredictor:
         self.input_shape = input_shape
         self.normalize = normalize
         self.model_name = model_name
-        self.checkpoint_path = Path(checkpoint_path) if checkpoint_path is not None else None
+        self.checkpoint_path = (
+            Path(checkpoint_path) if checkpoint_path is not None else None
+        )
 
         self.model.to(self.device)
         self.model.eval()

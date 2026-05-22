@@ -768,6 +768,7 @@ docker build
 - GitHub Actions CI.
 - CNN multi-task baseline: classification + regression.
 - multi-task inference: JSON с predicted_crack_count и регрессионными параметрами среды.
+- оценка multi-task checkpoint с classification и regression metrics.
 ```
 
 ## 22. Ограничения
