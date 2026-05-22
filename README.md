@@ -1274,6 +1274,59 @@ max latency
 throughput samples/sec
 ```
 
+## TorchScript export
+
+Помимо PyTorch checkpoint, модель можно экспортировать в TorchScript.
+
+Экспорт classification checkpoint:
+
+```bash
+uv run python scripts/export_torchscript.py \
+  --checkpoint outputs/cnn_baseline/best.pt \
+  --output outputs/cnn_baseline/model_torchscript.pt \
+  --device cpu
+```
+
+Экспорт multi-task checkpoint:
+
+```bash
+uv run python scripts/export_torchscript.py \
+  --checkpoint outputs/cnn_multitask_50ep/best.pt \
+  --output outputs/cnn_multitask_50ep/model_torchscript.pt \
+  --device cpu
+```
+
+После экспорта создаются:
+
+```text
+model_torchscript.pt
+model_torchscript.metadata.json
+```
+
+Для classification модели TorchScript возвращает:
+
+```text
+logits: [B, 3]
+```
+
+Для multi-task модели TorchScript возвращает tuple:
+
+```text
+logits:     [B, 3]
+regression: [B, 4]
+```
+
+Метаданные экспорта содержат:
+
+```text
+model_name
+input_shape
+output_format
+class_id_to_crack_count
+regression_columns
+target_scaler
+```
+
 ## 24. Тесты
 
 Запуск всех тестов:
