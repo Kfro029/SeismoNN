@@ -26,7 +26,8 @@ SAMPLE ?= $(shell uv run python -c 'import pandas as pd; print(pd.read_csv("data
 	train-cnn train-transformer train-transformer-finetuned train-multitask pretrain-transformer \
 	evaluate-cnn evaluate-transformer evaluate-transformer-finetuned evaluate-multitask compare \
 	predict predict-multitask api api-multitask docker-build docker-run docker-run-multitask \
-	mlflow-ui benchmark-cnn export-torchscript-cnn export-torchscript-multitask sample-path clean-cache
+	mlflow-ui benchmark-cnn export-torchscript-cnn export-torchscript-multitask sample-path clean-cache \
+	export-multitask-predictions
 
 help:
 	@echo "SeismoNN Makefile commands"
@@ -79,6 +80,7 @@ help:
 	@echo ""
 	@echo "Cleanup:"
 	@echo "  make clean-cache                  Remove local Python/test caches"
+	@echo "  make export-multitask-predictions Export per-sample multi-task predictions"
 
 sync:
 	$(UV) sync --all-extras --dev
@@ -283,6 +285,17 @@ export-torchscript-multitask:
 		--checkpoint $(MULTITASK_CKPT) \
 		--output outputs/cnn_multitask_50ep/model_torchscript.pt \
 		--device cpu
+
+export-multitask-predictions:
+	$(PYTHON) scripts/export_multitask_predictions.py \
+		--checkpoint $(MULTITASK_CKPT) \
+		--metadata data/metadata.csv \
+		--split val \
+		--batch-size 8 \
+		--device $(DEVICE) \
+		--output-csv outputs/cnn_multitask_50ep/predictions_val.csv \
+		--summary-output outputs/cnn_multitask_50ep/predictions_summary_val.json \
+		--plots-dir outputs/cnn_multitask_50ep/parity_plots
 
 clean-cache:
 	rm -rf .pytest_cache .ruff_cache .mypy_cache

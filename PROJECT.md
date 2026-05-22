@@ -776,6 +776,7 @@ docker build
 - FastAPI-сервис поддерживает как classification checkpoint, так и multi-task checkpoint. Тип predictor определяется автоматически по model_config.name.
 - TorchScript export для classification и multi-task моделей.
 - Makefile с основными командами для тестов, обучения, inference, API, Docker, MLflow и экспорта.
+- экспорт per-sample multi-task predictions и parity plots для регрессионных параметров.
 ```
 
 ## 22. Ограничения

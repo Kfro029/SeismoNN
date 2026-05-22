@@ -145,6 +145,50 @@ macro_recall
 macro_f1
 ```
 
+## Per-sample multi-task predictions
+
+Для анализа регрессионных предсказаний можно сохранить таблицу `true vs predicted` по каждому объекту validation split:
+
+```bash
+uv run python scripts/export_multitask_predictions.py \
+  --checkpoint outputs/cnn_multitask_50ep/best.pt \
+  --metadata data/metadata.csv \
+  --split val \
+  --batch-size 8 \
+  --device cpu \
+  --output-csv outputs/cnn_multitask_50ep/predictions_val.csv \
+  --summary-output outputs/cnn_multitask_50ep/predictions_summary_val.json \
+  --plots-dir outputs/cnn_multitask_50ep/parity_plots
+```
+
+Скрипт сохраняет:
+
+```text
+predictions_val.csv
+predictions_summary_val.json
+parity_plots/parity_mean_length.png
+parity_plots/parity_length_spread.png
+parity_plots/parity_mean_angle_deg.png
+parity_plots/parity_angle_spread_deg.png
+```
+
+В CSV содержатся:
+
+```text
+true_class_id
+predicted_class_id
+true_crack_count
+predicted_crack_count
+expected_crack_count
+true_<target>
+pred_<target>
+error_<target>
+abs_error_<target>
+squared_error_<target>
+```
+
+Графики parity plots показывают соответствие между истинными и предсказанными значениями физических параметров.
+
 ## 1. Практическая мотивация
 
 Трещиноватые среды встречаются в задачах геофизики, инженерной геологии и анализа подземных структур. Наличие, ориентация и характер трещин могут влиять на распространение волн в среде. Поэтому по сейсмическому отклику можно пытаться восстанавливать параметры среды.
@@ -1678,6 +1722,7 @@ Dataset card / DATASET.md
 Sample visualization script
 CNN multi-task baseline: classification + regression
 Universal API inference for classification and multi-task checkpoints
+Per-sample multi-task prediction export and parity plots
 ```
 
 ## 29. Что планируется добавить
