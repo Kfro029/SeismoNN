@@ -28,6 +28,7 @@ SAMPLE ?= $(shell uv run python -c 'import pandas as pd; print(pd.read_csv("data
 	predict predict-multitask api api-multitask docker-build docker-run docker-run-multitask \
 	mlflow-ui benchmark-cnn export-torchscript-cnn export-torchscript-multitask sample-path clean-cache \
 	export-multitask-predictions
+	results
 
 help:
 	@echo "SeismoNN Makefile commands"
@@ -81,6 +82,7 @@ help:
 	@echo "Cleanup:"
 	@echo "  make clean-cache                  Remove local Python/test caches"
 	@echo "  make export-multitask-predictions Export per-sample multi-task predictions"
+	@echo "  make results                      Generate RESULTS.md from output artifacts"
 
 sync:
 	$(UV) sync --all-extras --dev
@@ -273,6 +275,9 @@ benchmark-cnn:
 		--warmup-runs 3 \
 		--timed-runs 20 \
 		--output outputs/inference_benchmark.json
+
+results:
+	$(PYTHON) scripts/generate_results_report.py --output RESULTS.md
 
 export-torchscript-cnn:
 	$(PYTHON) scripts/export_torchscript.py \
