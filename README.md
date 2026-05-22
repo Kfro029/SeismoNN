@@ -55,6 +55,48 @@ regression RMSE в исходных единицах
 per-target MAE/RMSE
 ```
 
+## Multi-task inference
+
+Для multi-task модели используется отдельный inference script:
+
+```bash
+uv run python scripts/predict_multitask.py \
+  --checkpoint outputs/cnn_multitask_50ep/best.pt \
+  --input 2nd_selection/<sample_name>.npy \
+  --device cpu \
+  --output outputs/cnn_multitask_50ep/sample_multitask_prediction.json
+```
+
+Модель возвращает JSON с классификационным и регрессионным результатом:
+
+```json
+{
+  "model_name": "cnn_multitask",
+  "predicted_class_id": 1,
+  "predicted_crack_count": 4,
+  "expected_crack_count": 3.92,
+  "class_probabilities": {
+    "3": 0.10,
+    "4": 0.86,
+    "5": 0.04
+  },
+  "regression": {
+    "mean_length": 29.4,
+    "length_spread": 2.2,
+    "mean_angle_deg": 13.7,
+    "angle_spread_deg": 4.5
+  }
+}
+```
+
+Поле `expected_crack_count` считается как математическое ожидание по вероятностям классов:
+
+```text
+E[crack_count] = 3 * P(3) + 4 * P(4) + 5 * P(5)
+```
+
+Регрессионные значения возвращаются в исходных физических единицах, потому что в checkpoint сохраняется `target_scaler`.
+
 ## 1. Практическая мотивация
 
 Трещиноватые среды встречаются в задачах геофизики, инженерной геологии и анализа подземных структур. Наличие, ориентация и характер трещин могут влиять на распространение волн в среде. Поэтому по сейсмическому отклику можно пытаться восстанавливать параметры среды.

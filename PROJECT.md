@@ -767,6 +767,7 @@ docker build
 - pre-commit;
 - GitHub Actions CI.
 - CNN multi-task baseline: classification + regression.
+- multi-task inference: JSON с predicted_crack_count и регрессионными параметрами среды.
 ```
 
 ## 22. Ограничения
