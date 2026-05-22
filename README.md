@@ -1,16 +1,20 @@
 # SeismoNN: MLOps-система для анализа сейсмограмм трещиноватых сред
 
-**SeismoNN** — учебно-исследовательский MLOps-проект для предсказания параметров трещиноватой среды по синтетическим сейсмическим данным.
+**SeismoNN** — учебно-исследовательский MLOps-проект для анализа синтетических сейсмических откликов трещиноватых сред. Проект строит воспроизводимый ML-пайплайн: от описания данных и обучения моделей до inference API, Docker, CI и анализа результатов.
 
-Подробное описание датасета, его ограничений и процедуры валидации находится в файле [`DATASET.md`](DATASET.md).
+Краткая спецификация проекта находится в [`PROJECT.md`](PROJECT.md), подробное описание датасета — в [`DATASET.md`](DATASET.md).
 
-Краткая обновлённая спецификация проекта находится в [`PROJECT.md`](PROJECT.md). Подробное описание датасета — в [`DATASET.md`](DATASET.md).
+## Кратко о задаче
 
-## Multi-task baseline: классификация + регрессия
+Текущая MVP-задача — классификация количества трещин в среде по сейсмограмме:
 
-Помимо классификации количества трещин, проект поддерживает multi-task baseline.
+```text
+3 трещины
+4 трещины
+5 трещин
+```
 
-Модель одновременно предсказывает:
+Расширенная постановка уже поддерживается через multi-task baseline:
 
 ```text
 classification:
@@ -23,51 +27,73 @@ regression:
 - angle_spread_deg
 ```
 
-Запуск:
+Количество трещин остаётся классификационной целью, потому что это дискретная величина. Непрерывные физические параметры трещин предсказываются регрессионной головой.
 
-```bash
-uv run python scripts/train_multitask.py \
-  --config configs/train/cnn_multitask.yaml
-```
+## Практическая мотивация
 
-Для регрессии используется нормализация target-переменных по train split. В checkpoint сохраняется `target_scaler`, чтобы потом можно было восстановить предсказания в физических единицах.
+Трещиноватые среды встречаются в геофизике, инженерной геологии и задачах анализа подземных структур. Трещины влияют на распространение волн, поэтому по сейсмическому отклику можно оценивать параметры среды.
 
-Loss:
+Практическая ценность проекта:
 
 ```text
-total_loss = classification_loss + regression_loss_weight * regression_loss
+- автоматизация анализа сейсмических откликов;
+- первичная оценка параметров трещиноватой среды;
+- сравнение CNN, Transformer и self-supervised подходов;
+- воспроизводимый MLOps-пайплайн для экспериментов;
+- подготовка инфраструктуры для будущей проверки на более реалистичных данных.
 ```
 
-Где:
+## Формат входных данных
+
+Каждый объект датасета — `.npy` файл:
 
 ```text
-classification_loss = CrossEntropyLoss
-regression_loss = MSELoss по нормализованным regression targets
+shape: (2, 1723, 501)
+dtype: float32
 ```
 
-Валидационные метрики:
+Расшифровка размерностей:
 
 ```text
-classification accuracy
-classification macro-F1
-regression MAE в исходных единицах
-regression RMSE в исходных единицах
-per-target MAE/RMSE
+2     — компоненты скорости отражённой волны: vx и vy;
+1723  — временные шаги моделирования;
+501   — приёмники / receiver positions на поверхности.
 ```
 
-## Multi-task inference
+Один объект содержит:
 
-Для multi-task модели используется отдельный inference script:
-
-```bash
-uv run python scripts/predict_multitask.py \
-  --checkpoint outputs/cnn_multitask_50ep/best.pt \
-  --input 2nd_selection/<sample_name>.npy \
-  --device cpu \
-  --output outputs/cnn_multitask_50ep/sample_multitask_prediction.json
+```text
+2 * 1723 * 501 = 1 726 446 float32 значений
 ```
 
-Модель возвращает JSON с классификационным и регрессионным результатом:
+Оценочный размер одного объекта в памяти:
+
+```text
+1 726 446 * 4 bytes ≈ 6.6 MiB
+```
+
+В исходном ТЗ фигурировала форма `(2, 1733, 501)`, но фактическая форма всех файлов текущего датасета — `(2, 1723, 501)`.
+
+## Формат выходных данных
+
+Для классификационной модели JSON-ответ выглядит так:
+
+```json
+{
+  "model_name": "cnn_baseline",
+  "input_path": "sample.npy",
+  "predicted_class_id": 1,
+  "predicted_crack_count": 4,
+  "class_probabilities": {
+    "3": 0.12,
+    "4": 0.81,
+    "5": 0.07
+  },
+  "checkpoint_path": "outputs/cnn_baseline/best.pt"
+}
+```
+
+Для multi-task модели ответ дополнительно содержит регрессионные параметры:
 
 ```json
 {
@@ -89,241 +115,15 @@ uv run python scripts/predict_multitask.py \
 }
 ```
 
-Поле `expected_crack_count` считается как математическое ожидание по вероятностям классов:
+`expected_crack_count` считается как математическое ожидание:
 
 ```text
 E[crack_count] = 3 * P(3) + 4 * P(4) + 5 * P(5)
 ```
 
-Регрессионные значения возвращаются в исходных физических единицах, потому что в checkpoint сохраняется `target_scaler`.
+## Пример входного файла
 
-## Multi-task checkpoint evaluation
-
-Для оценки multi-task модели на validation split используется:
-
-```bash
-uv run python scripts/evaluate_multitask_checkpoint.py \
-  --checkpoint outputs/cnn_multitask_50ep/best.pt \
-  --metadata data/metadata.csv \
-  --split val \
-  --batch-size 8 \
-  --device cpu \
-  --output outputs/cnn_multitask_50ep/evaluation_val.json
-```
-
-Отчёт содержит классификационные метрики:
-
-```text
-accuracy
-balanced accuracy
-macro precision
-macro recall
-macro-F1
-confusion matrix
-classification report
-```
-
-И регрессионные метрики:
-
-```text
-mean MAE
-mean RMSE
-per-target MAE/RMSE:
-  mean_length
-  length_spread
-  mean_angle_deg
-  angle_spread_deg
-```
-
-Такой отчёт можно использовать в `scripts/compare_evaluations.py`, потому что для классификационной части в JSON также сохраняются alias-поля:
-
-```text
-accuracy
-balanced_accuracy
-macro_precision
-macro_recall
-macro_f1
-```
-
-## Per-sample multi-task predictions
-
-Для анализа регрессионных предсказаний можно сохранить таблицу `true vs predicted` по каждому объекту validation split:
-
-```bash
-uv run python scripts/export_multitask_predictions.py \
-  --checkpoint outputs/cnn_multitask_50ep/best.pt \
-  --metadata data/metadata.csv \
-  --split val \
-  --batch-size 8 \
-  --device cpu \
-  --output-csv outputs/cnn_multitask_50ep/predictions_val.csv \
-  --summary-output outputs/cnn_multitask_50ep/predictions_summary_val.json \
-  --plots-dir outputs/cnn_multitask_50ep/parity_plots
-```
-
-Скрипт сохраняет:
-
-```text
-predictions_val.csv
-predictions_summary_val.json
-parity_plots/parity_mean_length.png
-parity_plots/parity_length_spread.png
-parity_plots/parity_mean_angle_deg.png
-parity_plots/parity_angle_spread_deg.png
-```
-
-В CSV содержатся:
-
-```text
-true_class_id
-predicted_class_id
-true_crack_count
-predicted_crack_count
-expected_crack_count
-true_<target>
-pred_<target>
-error_<target>
-abs_error_<target>
-squared_error_<target>
-```
-
-Графики parity plots показывают соответствие между истинными и предсказанными значениями физических параметров.
-
-## 1. Практическая мотивация
-
-Трещиноватые среды встречаются в задачах геофизики, инженерной геологии и анализа подземных структур. Наличие, ориентация и характер трещин могут влиять на распространение волн в среде. Поэтому по сейсмическому отклику можно пытаться восстанавливать параметры среды.
-
-Практическая ценность проекта:
-
-```text
-- автоматизация анализа сейсмических откликов;
-- быстрое получение первичной оценки параметров трещиноватой среды;
-- возможность сравнивать разные ML-подходы на воспроизводимом пайплайне;
-- подготовка инфраструктуры для дальнейших экспериментов с CNN, Transformer и self-supervised pre-training.
-```
-
-В рамках курса MLOps основной акцент сделан не только на качестве модели, но и на воспроизводимом ML-пайплайне:
-
-```text
-данные → metadata.csv → split → Dataset → обучение → метрики → checkpoint → CLI/API inference → Docker → CI
-```
-
-## 2. Постановка задачи
-
-### Текущая задача MVP
-
-На вход подаётся `.npy` файл с сейсмическим откликом среды.
-
-Модель должна предсказать количество трещин в среде:
-
-```text
-3, 4 или 5
-```
-
-Это задача многоклассовой классификации.
-
-### Почему MVP отличается от полной исследовательской постановки
-
-Изначальная исследовательская цель — восстановление нескольких параметров трещиноватой среды, включая среднюю длину и угол трещин.
-
-Однако для первой устойчивой MLOps-версии выбрана более простая и проверяемая постановка:
-
-```text
-классификация количества трещин
-```
-
-Причины:
-
-```text
-- для этой задачи уже есть размеченный датасет;
-- target является дискретным и хорошо подходит для baseline-модели;
-- можно построить воспроизводимое train/validation разбиение;
-- можно использовать понятные метрики классификации;
-- проще проверить полный MLOps-контур: обучение, сохранение модели, CLI, API, Docker и CI.
-```
-
-После стабилизации MVP проект можно расширить до регрессии и multi-task learning.
-
-## 3. Формат входных данных
-
-Каждый объект датасета — это `.npy` файл с тензором:
-
-```text
-shape: (2, 1723, 501)
-dtype: float32
-```
-
-Расшифровка размерностей:
-
-```text
-2     — две компоненты скорости отражённой волны: vx и vy;
-1723  — количество временных шагов в моделировании;
-501   — количество приёмников / receiver positions на поверхности.
-```
-
-Один входной тензор содержит:
-
-```text
-2 * 1723 * 501 = 1 726 446 float32 значений
-```
-
-Оценочный размер одного объекта в памяти:
-
-```text
-1 726 446 * 4 bytes ≈ 6.6 MiB
-```
-
-В исходном ТЗ указывалась форма `(2, 1733, 501)`, однако после проверки всех файлов в текущем датасете через `metadata.csv` фактическая форма оказалась:
-
-```text
-(2, 1723, 501)
-```
-
-В будущих версиях можно добавить поддержку переменной длины временной оси через:
-
-```text
-- crop;
-- padding;
-- resampling;
-- temporal CNN frontend;
-- архитектуры, не завязанные на фиксированное число временных шагов.
-```
-
-## 4. Формат выходных данных
-
-Модель возвращает JSON с предсказанным классом и вероятностями классов.
-
-Пример ответа:
-
-```json
-{
-  "model_name": "cnn_baseline",
-  "input_path": "sample.npy",
-  "predicted_class_id": 1,
-  "predicted_crack_count": 4,
-  "class_probabilities": {
-    "3": 0.12,
-    "4": 0.81,
-    "5": 0.07
-  },
-  "checkpoint_path": "outputs/cnn_baseline/best.pt"
-}
-```
-
-Поля:
-
-```text
-model_name                 — имя модели;
-input_path                 — путь к входному .npy файлу;
-predicted_class_id         — предсказанный class_id;
-predicted_crack_count      — предсказанное количество трещин;
-class_probabilities        — вероятности классов после softmax;
-checkpoint_path            — checkpoint, из которого загружена модель.
-```
-
-## 5. Пример входного файла
-
-Пример имени файла из датасета:
+Пример имени файла:
 
 ```text
 receivers_fractures_4_0.0_-150.0_250.0_150.0_30.0_2.0_14.0_14.0.npy
@@ -335,7 +135,7 @@ receivers_fractures_4_0.0_-150.0_250.0_150.0_30.0_2.0_14.0_14.0.npy
 receivers_fractures_{crack_count}_{cluster_center_x}_{cluster_center_y}_{cluster_half_size_x}_{cluster_half_size_y}_{mean_length}_{length_spread}_{mean_angle_deg}_{angle_spread_deg}.npy
 ```
 
-Расшифровка примера:
+Расшифровка:
 
 ```text
 crack_count          = 4
@@ -349,15 +149,11 @@ mean_angle_deg       = 14.0
 angle_spread_deg     = 14.0
 ```
 
-В текущей задаче классификации target — это только `crack_count`.
-
-Остальные параметры сохраняются в `metadata.csv` и могут быть использованы в будущих регрессионных постановках.
-
-## 6. Датасет
+## Датасет
 
 Данные являются результатом компьютерного моделирования сейсмических откликов для сред с различными параметрами трещин.
 
-Публичное хранилище данных:
+Публичное хранилище:
 
 ```text
 https://huggingface.co/datasets/FAKIrik/Seismo_datasets
@@ -367,17 +163,17 @@ https://huggingface.co/datasets/FAKIrik/Seismo_datasets
 
 ```text
 - общий размер файлов: 17.6 GB;
-- dataset viewer недоступен, потому что Hugging Face не распознал поддерживаемые data files;
+- dataset viewer недоступен;
 - dataset card пока отсутствует.
 ```
 
-Используемая в MVP выборка:
+Текущая MVP-выборка:
 
 ```text
 665 объектов / .npy файлов
 ```
 
-Распределение по классам в исходной выборке:
+Распределение классов в исходной выборке:
 
 ```text
 3 трещины: 228 объектов
@@ -385,13 +181,13 @@ https://huggingface.co/datasets/FAKIrik/Seismo_datasets
 5 трещин: 209 объектов
 ```
 
-Каждый объект описан в файле:
+Каждый объект описан в:
 
 ```text
 data/metadata.csv
 ```
 
-Основные колонки `metadata.csv`:
+Основные колонки metadata:
 
 ```text
 sample_id
@@ -415,41 +211,9 @@ split_strategy
 split_stratify_column
 ```
 
-Проверить датасет можно командой:
+## Почему данные синтетические
 
-```bash
-uv run python - <<'PY'
-import pandas as pd
-
-df = pd.read_csv("data/metadata.csv")
-
-print(df.head())
-print()
-print(df.groupby(["split", "crack_count"]).size())
-print()
-print(df["shape"].value_counts())
-PY
-```
-
-## 7. Почему используются синтетические данные
-
-Данные синтетические, потому что для реальных трещиноватых сред сложно получить точную разметку:
-
-```text
-- точное количество трещин обычно неизвестно;
-- длины трещин и их углы не наблюдаются напрямую;
-- положение трещин в реальной среде часто доступно только косвенно;
-- реальные данные могут быть дорогими, закрытыми или шумными.
-```
-
-Компьютерное моделирование позволяет:
-
-```text
-- контролируемо варьировать параметры среды;
-- получать точные labels;
-- создавать датасеты для supervised learning;
-- проводить воспроизводимые эксперименты.
-```
+Для реальных трещиноватых сред трудно получить точную supervised-разметку: обычно неизвестны точное количество трещин, длины, углы и положение кластера. Синтетическое моделирование позволяет контролируемо задавать параметры среды и получать точные labels.
 
 Главный риск такого подхода:
 
@@ -457,52 +221,39 @@ PY
 domain gap
 ```
 
-То есть модель, обученная на синтетических данных, может хуже работать на реальных полевых данных. В будущих версиях этот риск можно снижать с помощью:
+Модель, обученная на синтетике, может хуже переноситься на реальные полевые данные. Возможные будущие меры: шумы, аугментации, domain randomization, self-supervised pre-training на неразмеченных данных и fine-tuning на более реалистичных данных.
+
+## Особенности и риски данных
 
 ```text
-- добавления шума и аугментаций;
-- domain randomization;
-- self-supervised pre-training;
-- fine-tuning на реальных или более реалистичных данных;
-- отдельной проверки на field data.
+1. Небольшое число объектов: 665.
+2. Большой размер одного объекта: (2, 1723, 501).
+3. Синтетическая природа данных.
+4. Возможная неоднозначность обратной задачи.
+5. Риск утечки через параметрическую сетку при случайном split.
 ```
 
-## 8. Особенности и сложности данных
-
-Основные сложности:
-
-```text
-1. Небольшое число объектов.
-   В текущей MVP-выборке 665 сэмплов, что мало для больших deep learning моделей.
-
-2. Большой размер одного объекта.
-   Каждый входной тензор имеет форму (2, 1723, 501), поэтому нельзя неаккуратно загружать весь датасет в память.
-
-3. Возможная неоднозначность обратной задачи.
-   Разные конфигурации трещин могут давать похожий сейсмический отклик.
-
-4. Риск утечки через параметрическую сетку.
-   Если данные сгенерированы декартовым произведением параметров, близкие конфигурации могут попадать одновременно в train и validation.
-
-5. Синтетическая природа данных.
-   Модель может переобучиться на особенности симулятора.
-```
-
-В текущей реализации используются:
+В проекте используются:
 
 ```text
 - metadata.csv для описания данных;
 - lazy loading .npy файлов;
-- np.load(..., mmap_mode="r") при загрузке;
+- np.load(..., mmap_mode="r");
 - фиксированное стратифицированное разбиение;
 - тесты без загрузки полного датасета.
 ```
 
-## 9. Разбиение на train/validation
+## Train/validation split
 
-Для воспроизводимости используется фиксированное стратифицированное разбиение по `class_id`.
+Используется фиксированное стратифицированное разбиение по `class_id`:
 
-Команда для генерации split:
+```text
+train: 532 объекта
+val:   133 объекта
+total: 665 объектов
+```
+
+Команда генерации split:
 
 ```bash
 uv run python scripts/create_split.py \
@@ -514,15 +265,7 @@ uv run python scripts/create_split.py \
   --stratify-column class_id
 ```
 
-Текущее разбиение:
-
-```text
-train: 532 объекта
-val:   133 объекта
-total: 665 объектов
-```
-
-В `metadata.csv` сохраняются служебные поля:
+В metadata сохраняются поля:
 
 ```text
 split_seed
@@ -530,94 +273,50 @@ split_strategy
 split_stratify_column
 ```
 
-Это позволяет воспроизвести эксперимент и явно понимать, как было получено разбиение.
+## Метрики
 
-Проверка распределения классов:
-
-```bash
-uv run python - <<'PY'
-import pandas as pd
-
-df = pd.read_csv("data/metadata.csv")
-
-print(df.groupby(["split", "crack_count"]).size())
-print()
-print(df[["split_seed", "split_strategy", "split_stratify_column"]].drop_duplicates())
-PY
-```
-
-В будущей версии стоит добавить более строгий `group split` по параметрам моделирования, чтобы близкие конфигурации не попадали одновременно в train и validation.
-
-## 10. Метрики
-
-Так как текущая MVP-задача является задачей классификации, используются следующие метрики:
+Для классификации используются:
 
 ```text
-1. Cross-Entropy Loss
-2. Accuracy
-3. Balanced Accuracy
-4. Macro Precision
-5. Macro Recall
-6. Macro-F1
-7. Confusion Matrix
+Cross-Entropy Loss
+Accuracy
+Balanced Accuracy
+Macro Precision
+Macro Recall
+Macro-F1
+Confusion Matrix
+Classification Report
 ```
 
-Почему нужны не только Accuracy:
+Для regression targets в multi-task модели используются:
 
 ```text
-- Accuracy показывает общую долю правильных ответов;
-- Macro-F1 одинаково учитывает каждый класс;
-- Macro Precision показывает качество положительных предсказаний по классам;
-- Macro Recall показывает, насколько хорошо модель находит каждый класс;
-- Balanced Accuracy полезна при дисбалансе классов;
-- Confusion Matrix показывает, какие классы модель путает.
+MAE
+RMSE
+per-target MAE/RMSE
+```
+
+Для deployment дополнительно измеряются:
+
+```text
+latency p50
+latency p95
+latency p99
+throughput samples/sec
 ```
 
 Ориентиры качества:
 
 ```text
-Random baseline для 3 классов:
-accuracy ≈ 0.33
-
-Majority-class baseline:
-accuracy ≈ 228 / 665 ≈ 0.34
-
-Минимальная цель MVP:
-accuracy и macro-F1 выше случайного baseline.
-
-Ожидаемый уровень для CNN baseline после настройки:
-accuracy > 0.40–0.50
-macro-F1 > 0.35–0.45
-
-Цель основной модели:
-улучшение метрик относительно CNN baseline.
+Random baseline для 3 классов: accuracy ≈ 0.33
+Majority-class baseline: accuracy ≈ 228 / 665 ≈ 0.34
+Минимальная цель MVP: accuracy и macro-F1 выше случайного baseline
+Ожидаемый уровень CNN baseline после настройки: accuracy > 0.40–0.50
 ```
 
-Значения являются ориентирами, а не гарантией, так как задача исследовательская, а датасет небольшой.
+## Реализованные модели
 
-Для будущей регрессионной постановки будут использоваться:
-
-```text
-- MAE;
-- RMSE;
-- R²;
-- ошибка по углу в градусах;
-- относительная ошибка длины трещин.
-```
-
-Для внедрения также планируется оценивать:
-
-```text
-- latency p50;
-- latency p95;
-- throughput;
-- размер модели;
-- потребление памяти.
-```
-
-## 11. Baseline-модель
-
-Текущий baseline — CNN-классификатор.
+### CNN baseline
 
 Архитектура:
 
@@ -641,115 +340,27 @@ Linear → ReLU → Dropout → Linear
 [B, 3]
 ```
 
-где 3 — количество классов:
+### Trace Transformer classifier
 
-```text
-3, 4, 5 трещин
-```
-
-Почему используется `AdaptiveAvgPool2d`:
-
-```text
-- модель не требует заранее вычислять размер flatten-вектора;
-- архитектура становится устойчивее к небольшим изменениям пространственно-временной размерности;
-- проще использовать модель в inference.
-```
-
-## 12. Пайплайн обучения baseline
-
-Полный pipeline обучения:
-
-```text
-.npy файл
-  ↓
-metadata.csv
-  ↓
-SeismoDataset
-  ↓
-проверка shape/dtype
-  ↓
-нормализация одного sample
-  ↓
-DataLoader
-  ↓
-CNN baseline
-  ↓
-CrossEntropyLoss
-  ↓
-Adam / AdamW
-  ↓
-валидация на stratified split
-  ↓
-выбор best checkpoint по val_macro_f1
-  ↓
-сохранение артефактов
-```
-
-Артефакты обучения:
-
-```text
-outputs/cnn_baseline/best.pt
-outputs/cnn_baseline/last.pt
-outputs/cnn_baseline/history.csv
-outputs/cnn_baseline/metrics.json
-outputs/cnn_baseline/loss.png
-outputs/cnn_baseline/accuracy.png
-outputs/cnn_baseline/macro_f1.png
-outputs/cnn_baseline/confusion_matrix.png
-```
-
-Директория `outputs/` не коммитится в git.
-
-## 13. Transformer encoder model
-
-В проект добавлена supervised Transformer encoder модель `trace_transformer`.
-
-Она вдохновлена идеей StorSeismic: сейсмические трассы рассматриваются как последовательность токенов, а self-attention моделирует зависимости между receiver-трассами.
-
-Текущая реализация пока не включает self-supervised pre-training. Сейчас Transformer обучается supervised способом на задачу классификации количества трещин.
-
-Модель вдохновлена статьёй:
+Transformer-модель вдохновлена статьёй:
 
 ```text
 StorSeismic: A new paradigm in deep learning for seismic processing
 https://arxiv.org/abs/2205.00222
 ```
 
-Идея адаптации:
-
-```text
-x имеет форму [B, 2, T, R]
-
-B — batch size
-2 — компоненты скорости
-T — временные шаги
-R — receiver positions
-```
-
-Один возможный вариант токенизации:
+Адаптация к сейсмическим данным:
 
 ```text
 1. Каждый receiver / trace рассматривается как токен.
-2. Временная ось сжимается temporal CNN frontend.
-3. Получается последовательность признаков [B, R, d_model].
-4. Добавляется позиционное кодирование по receiver index.
+2. Temporal CNN frontend сжимает временную ось.
+3. Получается последовательность [B, R, d_model].
+4. Добавляется синусоидальное позиционное кодирование.
 5. TransformerEncoder моделирует зависимости между трассами.
 6. Classification head предсказывает количество трещин.
 ```
 
-Планируемый self-supervised pre-training:
-
-```text
-1. Маскировать часть receiver-трасс.
-2. Обучать encoder восстанавливать замаскированные трассы или их признаки.
-3. После pre-training дообучать модель на supervised задачу классификации.
-```
-
-Такая схема полезна, потому что полевые данные могут быть неразмеченными, но всё равно могут использоваться для self-supervised обучения.
-
-## Self-supervised pre-training
-
-В проект добавлен экспериментальный pipeline self-supervised pre-training для Transformer.
+### Self-supervised masked trace pre-training
 
 Задача pre-training:
 
@@ -757,7 +368,7 @@ R — receiver positions
 masked trace reconstruction
 ```
 
-Идея:
+Схема:
 
 ```text
 1. Берётся сейсмограмма x с формой [B, 2, T, R].
@@ -767,170 +378,36 @@ masked trace reconstruction
 5. MSE loss считается только на замаскированных receiver-трассах.
 ```
 
-Запуск:
+### Fine-tuning после pre-training
 
-```bash
-uv run python scripts/pretrain_transformer.py \
-  --config configs/pretrain/trace_transformer.yaml
-```
+После self-supervised pre-training веса `temporal_encoder.*` и `encoder.*` переносятся в supervised Transformer-классификатор. Голова реконструкции не переносится, потому что в supervised задаче используется classification head.
 
-Артефакты сохраняются в:
+### CNN multi-task baseline
 
-```text
-outputs/masked_trace_pretraining/
-```
-
-Основные артефакты:
+Модель одновременно решает классификацию и регрессию:
 
 ```text
-best.pt
-last.pt
-history.csv
-metrics.json
+classification:
+- crack_count / class_id
+
+regression:
+- mean_length
+- length_spread
+- mean_angle_deg
+- angle_spread_deg
 ```
 
-Текущая реализация pre-training является первым шагом. Следующий шаг — использовать веса предобученного encoder для supervised fine-tuning на задачу классификации количества трещин.
-
-## Fine-tuning после pre-training
-
-После self-supervised pre-training можно загрузить веса encoder-а в supervised Transformer-классификатор.
-
-Схема:
+Loss:
 
 ```text
-outputs/masked_trace_pretraining/best.pt
-  ↓
-temporal_encoder + Transformer encoder weights
-  ↓
-TraceTransformerClassifier
-  ↓
-supervised fine-tuning на crack_count
+total_loss = classification_loss + regression_loss_weight * regression_loss
+classification_loss = CrossEntropyLoss
+regression_loss = MSELoss по нормализованным regression targets
 ```
 
-Запуск fine-tuning:
-
-```bash
-uv run python scripts/train.py \
-  --config configs/train/transformer_finetune.yaml
-```
-
-Веса загружаются из блока конфига:
-
-```yaml
-pretrained:
-  enabled: true
-  checkpoint_path: outputs/masked_trace_pretraining/best.pt
-  prefixes:
-    - temporal_encoder.
-    - encoder.
-  min_loaded_keys: 1
-```
-
-В fine-tuning checkpoint сохраняется информация о переносе весов:
-
-```text
-pretrained_transfer.json
-```
-
-Текущая реализация переносит только совместимые веса:
-
-```text
-- temporal_encoder.*
-- encoder.*
-```
-
-Голова реконструкции из pre-training не переносится, потому что в supervised задаче используется classification head.
-
-## 14. Внедрение
-
-Текущие способы использования модели:
-
-```text
-1. Python-пакет seismonn
-2. CLI inference через scripts/predict.py
-3. FastAPI HTTP service
-4. Docker container
-```
-
-Формат модели:
-
-```text
-PyTorch checkpoint: best.pt
-```
-
-ONNX и TorchScript пока не используются, но могут быть добавлены позже.
-
-### Ресурсы для обучения
-
-Для CNN baseline:
-
-```text
-CPU: возможно, но медленно
-GPU: желательно
-RAM: зависит от batch_size
-```
-
-Для Transformer:
-
-```text
-GPU: желательно / практически необходимо
-VRAM: зависит от d_model, числа heads, числа слоёв и batch_size
-```
-
-### Ресурсы для inference
-
-Для одиночного inference CNN baseline:
-
-```text
-CPU: достаточно
-GPU: опционально
-```
-
-Для production-подобного запуска доступен FastAPI сервис и Docker image.
-
-## 15. Технологический стек
-
-Основной стек:
-
-```text
-Python 3.12
-PyTorch
-NumPy
-Pandas
-Scikit-learn
-Matplotlib
-PyYAML
-FastAPI
-Uvicorn
-Docker
-Pytest
-pre-commit
-Ruff
-GitHub Actions
-uv
-```
-
-Назначение компонентов:
-
-```text
-PyTorch       — обучение и inference нейронной сети
-NumPy         — работа с .npy данными
-Pandas        — metadata.csv и таблицы
-Scikit-learn  — метрики и split
-FastAPI       — HTTP inference service
-Docker        — контейнеризация API
-Pytest        — тестирование
-pre-commit    — проверки перед коммитом
-Ruff          — линтинг и форматирование
-GitHub Actions — CI
-uv            — управление зависимостями
-```
-
-## 16. Установка
+## Установка
 
 Проект использует `uv`.
-
-Установка зависимостей:
 
 ```bash
 uv sync
@@ -946,7 +423,7 @@ uv sync --all-extras --dev
 
 ## Makefile
 
-Для удобства основные команды проекта вынесены в `Makefile`.
+Основные команды вынесены в `Makefile`.
 
 Показать список доступных команд:
 
@@ -954,13 +431,7 @@ uv sync --all-extras --dev
 make help
 ```
 
-Установка зависимостей:
-
-```bash
-make sync
-```
-
-Тесты и проверки качества кода:
+Базовые проверки:
 
 ```bash
 make test
@@ -977,7 +448,7 @@ make inspect-sample
 make visualize-sample
 ```
 
-Обучение моделей:
+Обучение:
 
 ```bash
 make train-cnn
@@ -987,52 +458,19 @@ make train-transformer-finetuned
 make train-multitask
 ```
 
-Оценка моделей:
-
-```bash
-make evaluate-cnn
-make evaluate-transformer
-make evaluate-transformer-finetuned
-make evaluate-multitask
-make compare
-```
-
-Inference:
+Inference и deployment:
 
 ```bash
 make predict
 make predict-multitask
-```
-
-FastAPI:
-
-```bash
 make api
 make api-multitask
-```
-
-Docker:
-
-```bash
 make docker-build
 make docker-run
 make docker-run-multitask
 ```
 
-MLflow:
-
-```bash
-make mlflow-ui
-```
-
-TorchScript export:
-
-```bash
-make export-torchscript-cnn
-make export-torchscript-multitask
-```
-
-Некоторые цели используют переменные, которые можно переопределить:
+Некоторые переменные можно переопределить:
 
 ```bash
 make predict SAMPLE=2nd_selection/<sample_name>.npy
@@ -1040,9 +478,9 @@ make api PORT=8080 DEVICE=cpu
 make evaluate-cnn CNN_CKPT=outputs/cnn_baseline_50ep/best.pt
 ```
 
-## 17. Генерация metadata.csv
+## Работа с данными
 
-Если доступны `2nd_sel.json` и директория `2nd_selection/`, metadata можно пересоздать командой:
+### Генерация metadata.csv
 
 ```bash
 uv run python scripts/build_metadata.py \
@@ -1053,27 +491,9 @@ uv run python scripts/build_metadata.py \
   --validate-files
 ```
 
-Проверка metadata:
+### Валидация metadata и .npy файлов
 
-```bash
-uv run python - <<'PY'
-import pandas as pd
-
-df = pd.read_csv("data/metadata.csv")
-
-print(df.head())
-print()
-print(df.columns.tolist())
-print()
-print(df.groupby(["split", "crack_count"]).size())
-print()
-print(df["shape"].value_counts())
-PY
-```
-
-## Валидация metadata и датасета
-
-Для проверки структуры `metadata.csv` используется скрипт:
+Только metadata:
 
 ```bash
 uv run python scripts/validate_metadata.py \
@@ -1084,18 +504,7 @@ uv run python scripts/validate_metadata.py \
   --expected-splits train val
 ```
 
-Скрипт проверяет:
-
-```text
-- наличие обязательных колонок;
-- отсутствие дубликатов sample_id, path, filename;
-- корректность split;
-- соответствие class_id и crack_count;
-- shape из metadata.csv;
-- dtype из metadata.csv.
-```
-
-Если локально доступна директория с `.npy` файлами, можно проверить сами файлы:
+Metadata + реальные `.npy` файлы:
 
 ```bash
 uv run python scripts/validate_metadata.py \
@@ -1108,17 +517,7 @@ uv run python scripts/validate_metadata.py \
   --output outputs/metadata_validation.json
 ```
 
-В режиме `--validate-files` дополнительно проверяется:
-
-```text
-- существование каждого .npy файла;
-- реальный shape массива;
-- реальный dtype массива.
-```
-
-## 18. Анализ одного примера данных
-
-Для просмотра конкретного объекта из `metadata.csv` можно использовать:
+### Анализ одного sample
 
 ```bash
 uv run python scripts/inspect_sample.py \
@@ -1127,39 +526,16 @@ uv run python scripts/inspect_sample.py \
   --index 0
 ```
 
-Скрипт выводит:
-
-```text
-- sample_id;
-- путь к .npy файлу;
-- split;
-- crack_count и class_id;
-- параметры среды из metadata.csv;
-- shape и dtype массива;
-- min, max, mean, std;
-- оценочный размер массива в MiB.
-```
-
-Сохранить результат в JSON:
-
-```bash
-uv run python scripts/inspect_sample.py \
-  --metadata data/metadata.csv \
-  --data-root . \
-  --index 0 \
-  --output outputs/sample_inspection.json
-```
-
-## Визуализация одного примера данных
-
-Для визуальной проверки сейсмограммы можно использовать:
+### Визуализация одного sample
 
 ```bash
 uv run python scripts/visualize_sample.py \
   --metadata data/metadata.csv \
   --data-root . \
   --index 0 \
-  --output-dir outputs/sample_visualization
+  --output-dir outputs/sample_visualization_small \
+  --max-time-steps 400 \
+  --max-receivers 200
 ```
 
 Скрипт сохраняет:
@@ -1172,71 +548,176 @@ vy_receiver_trace.png
 sample_info.json
 ```
 
-Также можно ограничить число временных шагов и receiver positions только для построения графиков:
+## Обучение
 
-```bash
-uv run python scripts/visualize_sample.py \
-  --metadata data/metadata.csv \
-  --data-root . \
-  --index 0 \
-  --output-dir outputs/sample_visualization_small \
-  --max-time-steps 400 \
-  --max-receivers 200
-```
-
-Эта визуализация нужна для sanity-check данных и демонстрации конкретного входного объекта.
-
-## 19. Обучение CNN baseline
-
-Запуск обучения:
+CNN baseline:
 
 ```bash
 uv run python scripts/train.py --config configs/train/cnn.yaml
 ```
 
-Конфиг обучения:
-
-```text
-configs/train/cnn.yaml
-```
-
-Основные параметры:
-
-```text
-seed
-device
-batch_size
-num_workers
-normalize
-num_epochs
-learning rate
-weight decay
-output_dir
-```
-
-После обучения лучший checkpoint сохраняется в:
-
-```text
-outputs/cnn_baseline/best.pt
-```
-
-## 20. CLI inference
-
-Запуск предсказания для одного `.npy` файла:
+Trace Transformer:
 
 ```bash
-uv run python scripts/predict.py \
-  --checkpoint outputs/cnn_baseline/best.pt \
-  --input 2nd_selection/<sample_name>.npy
+uv run python scripts/train.py --config configs/train/transformer.yaml
 ```
 
-Сохранение результата в JSON:
+Self-supervised pre-training:
+
+```bash
+uv run python scripts/pretrain_transformer.py \
+  --config configs/pretrain/trace_transformer.yaml
+```
+
+Fine-tuning после pre-training:
+
+```bash
+uv run python scripts/train.py \
+  --config configs/train/transformer_finetune.yaml
+```
+
+CNN multi-task baseline:
+
+```bash
+uv run python scripts/train_multitask.py \
+  --config configs/train/cnn_multitask.yaml
+```
+
+Артефакты обучения сохраняются в `outputs/`:
+
+```text
+best.pt
+last.pt
+history.csv
+metrics.json
+loss.png
+accuracy.png
+macro_f1.png
+confusion_matrix.png
+```
+
+`outputs/` не коммитится в git.
+
+## MLflow tracking
+
+MLflow включается в training config:
+
+```yaml
+tracking:
+  enabled: true
+  tracking_uri: mlruns
+  experiment_name: seismonn
+  run_name: cnn_baseline
+  log_artifacts: true
+```
+
+При обучении логируются:
+
+```text
+- параметры конфига;
+- train/validation метрики;
+- финальные метрики;
+- checkpoint-и;
+- графики;
+- metrics.json;
+- history.csv.
+```
+
+Запуск UI:
+
+```bash
+uv run mlflow ui --backend-store-uri mlruns
+```
+
+Адрес:
+
+```text
+http://127.0.0.1:5000
+```
+
+## Оценка и сравнение моделей
+
+### Оценка classification checkpoint
+
+```bash
+uv run python scripts/evaluate_checkpoint.py \
+  --checkpoint outputs/cnn_baseline/best.pt \
+  --metadata data/metadata.csv \
+  --split val \
+  --batch-size 16 \
+  --device cpu \
+  --output outputs/cnn_baseline/evaluation_val.json
+```
+
+### Оценка multi-task checkpoint
+
+```bash
+uv run python scripts/evaluate_multitask_checkpoint.py \
+  --checkpoint outputs/cnn_multitask_50ep/best.pt \
+  --metadata data/metadata.csv \
+  --split val \
+  --batch-size 8 \
+  --device cpu \
+  --output outputs/cnn_multitask_50ep/evaluation_val.json
+```
+
+### Сравнение нескольких evaluation reports
+
+```bash
+uv run python scripts/compare_evaluations.py \
+  --reports \
+    outputs/cnn_baseline/evaluation_val.json \
+    outputs/trace_transformer/evaluation_val.json \
+    outputs/trace_transformer_finetuned/evaluation_val.json \
+    outputs/cnn_multitask_50ep/evaluation_val.json \
+  --output-csv outputs/model_comparison.csv \
+  --output-md outputs/model_comparison.md
+```
+
+### Per-sample multi-task predictions
+
+```bash
+uv run python scripts/export_multitask_predictions.py \
+  --checkpoint outputs/cnn_multitask_50ep/best.pt \
+  --metadata data/metadata.csv \
+  --split val \
+  --batch-size 8 \
+  --device cpu \
+  --output-csv outputs/cnn_multitask_50ep/predictions_val.csv \
+  --summary-output outputs/cnn_multitask_50ep/predictions_summary_val.json \
+  --plots-dir outputs/cnn_multitask_50ep/parity_plots
+```
+
+Сохраняются:
+
+```text
+predictions_val.csv
+predictions_summary_val.json
+parity_plots/parity_mean_length.png
+parity_plots/parity_length_spread.png
+parity_plots/parity_mean_angle_deg.png
+parity_plots/parity_angle_spread_deg.png
+```
+
+## CLI inference
+
+Classification checkpoint:
 
 ```bash
 uv run python scripts/predict.py \
   --checkpoint outputs/cnn_baseline/best.pt \
   --input 2nd_selection/<sample_name>.npy \
   --output outputs/sample_prediction.json
+```
+
+Multi-task checkpoint:
+
+```bash
+uv run python scripts/predict_multitask.py \
+  --checkpoint outputs/cnn_multitask_50ep/best.pt \
+  --input 2nd_selection/<sample_name>.npy \
+  --device cpu \
+  --output outputs/cnn_multitask_50ep/sample_multitask_prediction.json
 ```
 
 Получить пример пути из metadata:
@@ -1250,51 +731,17 @@ print(df.iloc[0]["path"])
 PY
 ```
 
-## 21. FastAPI inference service
+## FastAPI inference service
 
-Запуск API локально:
+Classification checkpoint:
 
 ```bash
 SEISMONN_CHECKPOINT=outputs/cnn_baseline/best.pt \
+SEISMONN_PREDICTOR_TYPE=auto \
 uv run uvicorn seismonn.api.main:app --host 127.0.0.1 --port 8000
 ```
 
-Проверка состояния сервиса:
-
-```bash
-curl -s http://127.0.0.1:8000/health | python -m json.tool
-```
-
-Отправка `.npy` файла:
-
-```bash
-curl -s -X POST \
-  http://127.0.0.1:8000/predict \
-  -F "file=@2nd_selection/<sample_name>.npy" \
-  | python -m json.tool
-```
-
-Endpoint-ы:
-
-```text
-GET  /health   — проверка состояния сервиса и загрузки модели
-POST /predict  — загрузка .npy файла и получение JSON-предсказания
-```
-
-### API для multi-task checkpoint
-
-FastAPI-сервис автоматически определяет тип checkpoint.
-
-Если используется `cnn_multitask`, endpoint `/predict` возвращает не только классификацию количества трещин, но и регрессионные параметры среды:
-
-```text
-mean_length
-length_spread
-mean_angle_deg
-angle_spread_deg
-```
-
-Запуск API с multi-task checkpoint:
+Multi-task checkpoint:
 
 ```bash
 SEISMONN_CHECKPOINT=outputs/cnn_multitask_50ep/best.pt \
@@ -1302,7 +749,7 @@ SEISMONN_PREDICTOR_TYPE=auto \
 uv run uvicorn seismonn.api.main:app --host 127.0.0.1 --port 8000
 ```
 
-Проверка:
+Healthcheck:
 
 ```bash
 curl -s http://127.0.0.1:8000/health | python -m json.tool
@@ -1317,7 +764,34 @@ curl -s -X POST \
   | python -m json.tool
 ```
 
-Для Docker:
+API автоматически определяет тип checkpoint:
+
+```text
+cnn_baseline / trace_transformer → classification predictor
+cnn_multitask                   → multi-task predictor
+```
+
+## Docker
+
+Сборка image:
+
+```bash
+docker build -t seismonn-api .
+```
+
+Classification checkpoint:
+
+```bash
+docker run --rm \
+  -p 8000:8000 \
+  -e SEISMONN_CHECKPOINT=/app/checkpoints/best.pt \
+  -e SEISMONN_DEVICE=cpu \
+  -e SEISMONN_PREDICTOR_TYPE=auto \
+  -v "$(pwd)/outputs/cnn_baseline/best.pt:/app/checkpoints/best.pt:ro" \
+  seismonn-api
+```
+
+Multi-task checkpoint:
 
 ```bash
 docker run --rm \
@@ -1329,60 +803,7 @@ docker run --rm \
   seismonn-api
 ```
 
-## 22. Docker
-
-Сборка Docker image:
-
-```bash
-docker build -t seismonn-api .
-```
-
-Запуск контейнера с примонтированным checkpoint:
-
-```bash
-docker run --rm \
-  -p 8000:8000 \
-  -e SEISMONN_CHECKPOINT=/app/checkpoints/best.pt \
-  -e SEISMONN_DEVICE=cpu \
-  -v "$(pwd)/outputs/cnn_baseline/best.pt:/app/checkpoints/best.pt:ro" \
-  seismonn-api
-```
-
-Проверка сервиса:
-
-```bash
-curl -s http://127.0.0.1:8000/health | python -m json.tool
-```
-
-Prediction request:
-
-```bash
-curl -s -X POST \
-  http://127.0.0.1:8000/predict \
-  -F "file=@2nd_selection/<sample_name>.npy" \
-  | python -m json.tool
-```
-
-Запуск контейнера в фоне:
-
-```bash
-docker run -d --name seismonn-api \
-  -p 8000:8000 \
-  -e SEISMONN_CHECKPOINT=/app/checkpoints/best.pt \
-  -e SEISMONN_DEVICE=cpu \
-  -v "$(pwd)/outputs/cnn_baseline/best.pt:/app/checkpoints/best.pt:ro" \
-  seismonn-api
-```
-
-Остановка контейнера:
-
-```bash
-docker stop seismonn-api
-```
-
-## 23. Benchmark инференса
-
-Для оценки скорости инференса используется скрипт:
+## Benchmark инференса
 
 ```bash
 uv run python scripts/benchmark_inference.py \
@@ -1394,31 +815,18 @@ uv run python scripts/benchmark_inference.py \
   --output outputs/inference_benchmark.json
 ```
 
-Скрипт измеряет два режима:
+Скрипт измеряет:
 
 ```text
-model_only — только forward pass модели на заранее загруженном tensor;
-end_to_end — загрузка .npy, preprocessing, inference и формирование JSON-ответа.
-```
-
-Для каждого режима сохраняются:
-
-```text
-mean latency
-std latency
-min latency
-p50 latency
-p95 latency
-p99 latency
-max latency
+model_only latency
+end_to_end latency
+p50 / p95 / p99
 throughput samples/sec
 ```
 
 ## TorchScript export
 
-Помимо PyTorch checkpoint, модель можно экспортировать в TorchScript.
-
-Экспорт classification checkpoint:
+Classification checkpoint:
 
 ```bash
 uv run python scripts/export_torchscript.py \
@@ -1427,7 +835,7 @@ uv run python scripts/export_torchscript.py \
   --device cpu
 ```
 
-Экспорт multi-task checkpoint:
+Multi-task checkpoint:
 
 ```bash
 uv run python scripts/export_torchscript.py \
@@ -1449,25 +857,14 @@ model_torchscript.metadata.json
 logits: [B, 3]
 ```
 
-Для multi-task модели TorchScript возвращает tuple:
+Для multi-task модели TorchScript возвращает:
 
 ```text
 logits:     [B, 3]
 regression: [B, 4]
 ```
 
-Метаданные экспорта содержат:
-
-```text
-model_name
-input_shape
-output_format
-class_id_to_crack_count
-regression_columns
-target_scaler
-```
-
-## 24. Тесты
+## Тесты, code quality и CI
 
 Запуск всех тестов:
 
@@ -1475,58 +872,19 @@ target_scaler
 uv run pytest
 ```
 
-Запуск отдельных тестов:
-
-```bash
-uv run pytest \
-  tests/test_dataset.py \
-  tests/test_cnn.py \
-  tests/test_evaluate.py \
-  tests/test_predictor.py \
-  tests/test_api.py \
-  tests/test_splits.py
-```
-
-Тесты не требуют полного датасета. Для unit-тестов используются маленькие синтетические `.npy` массивы.
-
-## 25. Code quality и pre-commit
-
-Запуск pre-commit:
+Pre-commit:
 
 ```bash
 uv run pre-commit run --all-files
 ```
 
-Если pre-commit автоматически изменил файлы:
-
-```bash
-git add .
-uv run pre-commit run --all-files
-```
-
-Используемые проверки:
-
-```text
-ruff
-ruff-format
-trailing-whitespace
-end-of-file-fixer
-check-yaml
-```
-
-## 26. Continuous Integration
-
-Проект использует GitHub Actions для CI.
-
-Workflow:
+CI:
 
 ```text
 .github/workflows/ci.yaml
 ```
 
-CI запускается на push и pull request.
-
-Проверки:
+CI запускается на push и pull request и проверяет:
 
 ```text
 pre-commit checks
@@ -1534,243 +892,146 @@ pytest tests
 Docker image build
 ```
 
-Основные команды CI:
-
-```bash
-uv sync --all-extras --dev --frozen
-uv run pre-commit run --all-files
-uv run pytest
-docker build -t seismonn-api:ci .
-```
-
-## MLflow tracking
-
-Проект поддерживает логирование экспериментов через MLflow.
-
-MLflow включается в конфиге обучения:
-
-```yaml
-tracking:
-  enabled: true
-  tracking_uri: mlruns
-  experiment_name: seismonn
-  run_name: cnn_baseline
-  log_artifacts: true
-```
-
-При обучении логируются:
-
-```text
-- параметры конфига;
-- train/validation метрики по эпохам;
-- финальные метрики;
-- best.pt и last.pt;
-- history.csv;
-- metrics.json;
-- графики loss, accuracy, macro-F1;
-- confusion_matrix.png.
-```
-
-Запуск обучения:
-
-```bash
-uv run python scripts/train.py --config configs/train/cnn.yaml
-```
-
-Запуск MLflow UI:
-
-```bash
-uv run mlflow ui --backend-store-uri mlruns
-```
-
-После запуска UI доступен по адресу:
-
-```text
-http://127.0.0.1:5000
-```
-
-## Оценка сохранённого checkpoint
-
-Для независимой оценки сохранённой модели используется скрипт:
-
-```bash
-uv run python scripts/evaluate_checkpoint.py \
-  --checkpoint outputs/cnn_baseline/best.pt \
-  --metadata data/metadata.csv \
-  --split val \
-  --batch-size 16 \
-  --device cpu \
-  --output outputs/cnn_baseline/evaluation_val.json
-```
-
-Скрипт загружает checkpoint, восстанавливает модель по `model_config`, создаёт `SeismoDataset` для выбранного split и считает метрики классификации.
-
-В отчёт входят:
-
-```text
-- loss;
-- accuracy;
-- balanced accuracy;
-- macro precision;
-- macro recall;
-- macro-F1;
-- confusion matrix;
-- classification report по классам 3 / 4 / 5.
-```
-
-Такой скрипт позволяет одинаково оценивать разные модели:
-
-```text
-CNN baseline
-supervised Trace Transformer
-fine-tuned Trace Transformer
-```
-
-## Сравнение нескольких моделей
-
-После сохранения evaluation JSON для разных моделей можно собрать сводную таблицу:
-
-```bash
-uv run python scripts/compare_evaluations.py \
-  --reports \
-    outputs/cnn_baseline/evaluation_val.json \
-    outputs/trace_transformer/evaluation_val.json \
-    outputs/trace_transformer_finetuned/evaluation_val.json \
-  --output-csv outputs/model_comparison.csv \
-  --output-md outputs/model_comparison.md
-```
-
-Если какой-то модели ещё нет, её report можно убрать из списка.
-
-Скрипт строит таблицу с метриками:
-
-```text
-- loss;
-- accuracy;
-- balanced accuracy;
-- macro precision;
-- macro recall;
-- macro-F1.
-```
-
-По умолчанию таблица сортируется по `macro_f1` в порядке убывания.
-
-## 27. Структура проекта
+## Структура проекта
 
 ```text
 SeismoNN/
 ├── configs/
+│   ├── pretrain/
 │   └── train/
-│       └── cnn.yaml
 ├── data/
 │   └── metadata.csv
 ├── scripts/
-│   ├── baseline.py
 │   ├── build_metadata.py
 │   ├── create_split.py
+│   ├── train.py
+│   ├── train_multitask.py
+│   ├── pretrain_transformer.py
 │   ├── predict.py
-│   └── train.py
+│   ├── predict_multitask.py
+│   ├── evaluate_checkpoint.py
+│   ├── evaluate_multitask_checkpoint.py
+│   ├── compare_evaluations.py
+│   ├── export_multitask_predictions.py
+│   ├── export_torchscript.py
+│   ├── benchmark_inference.py
+│   ├── inspect_sample.py
+│   ├── validate_metadata.py
+│   └── visualize_sample.py
 ├── seismonn/
 │   ├── api/
-│   │   └── main.py
 │   ├── data/
-│   │   ├── dataset.py
-│   │   └── splits.py
+│   ├── evaluation/
+│   ├── exporting/
 │   ├── inference/
-│   │   └── predictor.py
 │   ├── models/
-│   │   └── cnn.py
+│   ├── tracking/
 │   └── training/
-│       ├── evaluate.py
-│       └── utils.py
 ├── tests/
+├── DATASET.md
+├── PROJECT.md
 ├── Dockerfile
-├── .dockerignore
+├── Makefile
 ├── pyproject.toml
 ├── uv.lock
 └── README.md
 ```
 
-## 28. Что уже реализовано
+## Что уже реализовано
 
 ```text
-Metadata-based dataset description
-Reproducible stratified split
-PyTorch Dataset
-CNN baseline model
-YAML training config
-Training script
-Validation metrics
-Best checkpoint saving
-CLI inference
-FastAPI inference service
-Docker deployment
-Pytest tests
-pre-commit checks
-GitHub Actions CI
-Extended classification metrics
-Dataset sample inspection script
-Inference benchmark script
-MLflow experiment tracking
-Trace Transformer classifier
-Model factory for CNN and Transformer
-Transformer config
-Pretrained encoder loading for Transformer fine-tuning
-Checkpoint evaluation script
-Model cmparison from evaluation reports
-Dataset card / DATASET.md
-Sample visualization script
-CNN multi-task baseline: classification + regression
-Universal API inference for classification and multi-task checkpoints
-Per-sample multi-task prediction export and parity plots
+- metadata.csv и описание датасета;
+- DATASET.md и PROJECT.md;
+- reproducible stratified split;
+- validation metadata и .npy файлов;
+- sample inspection и visualization;
+- PyTorch Dataset;
+- CNN classification baseline;
+- Trace Transformer classifier;
+- masked trace self-supervised pre-training;
+- fine-tuning Transformer после pre-training;
+- CNN multi-task baseline: classification + regression;
+- расширенные метрики классификации;
+- regression MAE/RMSE для multi-task модели;
+- MLflow experiment tracking;
+- checkpoint evaluation;
+- model comparison from evaluation reports;
+- per-sample multi-task prediction export;
+- parity plots для regression targets;
+- CLI inference;
+- universal FastAPI inference;
+- Docker deployment;
+- inference benchmark;
+- TorchScript export;
+- Makefile;
+- pytest tests;
+- pre-commit;
+- GitHub Actions CI.
 ```
 
-## 29. Что планируется добавить
+## Что планируется добавить
 
 ```text
 1. Group split:
-   более строгая проверка качества без утечки близких конфигураций.
+   более строгая проверка качества без утечки близких параметрических конфигураций между train и validation.
 
-2. Multi-task learning:
-   классификация количества трещин + регрессия длины и углов.
+2. Официальный test split:
+   отдельная тестовая выборка, которая не используется при выборе гиперпараметров.
+
+3. Multi-task Transformer:
+   расширение multi-task постановки с CNN baseline на Transformer encoder.
+
+4. Аугментации данных:
+   шум, receiver dropout, crop/pad/resample.
+
+5. DVC remote или другой воспроизводимый способ загрузки данных:
+   сейчас данные не хранятся в git, но нужен явно настроенный внешний storage.
+
+6. Проверка на более реалистичных или реальных данных:
+   оценка domain gap между синтетическими и field-data сейсмограммами.
+
+7. ONNX или torch.export:
+   более современный deployment export, если это потребуется.
 ```
 
-## 30. Ограничения текущей версии
+## Ограничения текущей версии
 
 ```text
-- Данные синтетические.
-- Количество объектов небольшое: 665.
-- Текущая модель — baseline CNN, а не финальная исследовательская модель.
-- Реальный перенос на полевые данные пока не проверялся.
-- Transformer и self-supervised pre-training пока находятся в плане.
-- ONNX/TorchScript экспорт пока не реализован.
-- Latency/throughput пока не измеряются отдельным benchmark-скриптом.
+- данные синтетические;
+- текущая MVP-выборка содержит 665 объектов;
+- нет отдельного официального test split;
+- перенос на реальные field data пока не проверялся;
+- возможен domain gap;
+- возможна утечка близких параметрических конфигураций между train и validation;
+- Transformer и self-supervised pipeline являются экспериментальными;
+- multi-task regression baseline реализован только для CNN;
+- TorchScript export добавлен, но ONNX / torch.export пока не реализованы.
 ```
 
-## 31. Краткий вывод
+## Краткий итог
 
-Текущая версия SeismoNN — это воспроизводимый MLOps baseline для задачи классификации количества трещин по синтетическим сейсмограммам.
+SeismoNN — это воспроизводимый MLOps-пайплайн для анализа сейсмических откликов трещиноватых сред.
 
-Основной результат MVP:
+Текущий pipeline:
 
 ```text
+данные
+  ↓
 metadata.csv
   ↓
-reproducible split
+validation
   ↓
-Dataset
+training
   ↓
-CNN training
+tracking
   ↓
-best.pt
+evaluation
   ↓
-CLI inference
+inference
   ↓
-FastAPI inference
+API / Docker
   ↓
-Docker deployment
-  ↓
-CI checks
+CI
 ```
 
-Следующий исследовательский шаг — перейти от CNN baseline к Transformer encoder и self-supervised pre-training, а также расширить задачу до регрессии физических параметров трещиноватой среды.
+Проект уже поддерживает классификацию количества трещин, multi-task baseline для регрессии физических параметров, Transformer-модель, self-supervised pre-training и полный набор MLOps-компонентов для воспроизводимых экспериментов.
