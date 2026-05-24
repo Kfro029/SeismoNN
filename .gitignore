@@ -21,3 +21,8 @@ mlruns/
 *.pt
 *.pth
 *.ckpt
+
+# Model artifacts
+models/**/*.pt
+models/**/*.pth
+models/**/*.ckpt

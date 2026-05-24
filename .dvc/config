@@ -1,0 +1,6 @@
+[core]
+    remote = data_storage
+['remote "data_storage"']
+    url = ../../seismonn-dvc-storage/data
+['remote "model_storage"']
+    url = ../../seismonn-dvc-storage/models

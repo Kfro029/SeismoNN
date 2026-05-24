@@ -1,0 +1,6 @@
+sample_id,path,filename,split,crack_count,class_id,cluster_center_x,cluster_center_y,cluster_half_size_x,cluster_half_size_y,mean_length,length_spread,mean_angle_deg,angle_spread_deg,shape,dtype
+0,2nd_selection/receivers_fractures_4_0.0_-150.0_250.0_150.0_30.0_2.0_14.0_14.0.npy,receivers_fractures_4_0.0_-150.0_250.0_150.0_30.0_2.0_14.0_14.0.npy,train,4,1,0.0,-150.0,250.0,150.0,30.0,2.0,14.0,14.0,2x1723x501,float32
+1,2nd_selection/receivers_fractures_5_0.0_-150.0_250.0_150.0_30.0_4.0_-16.0_-16.0.npy,receivers_fractures_5_0.0_-150.0_250.0_150.0_30.0_4.0_-16.0_-16.0.npy,train,5,2,0.0,-150.0,250.0,150.0,30.0,4.0,-16.0,-16.0,2x1723x501,float32
+2,2nd_selection/receivers_fractures_5_0.0_-150.0_250.0_150.0_40.0_2.0_-8.0_-8.0.npy,receivers_fractures_5_0.0_-150.0_250.0_150.0_40.0_2.0_-8.0_-8.0.npy,train,5,2,0.0,-150.0,250.0,150.0,40.0,2.0,-8.0,-8.0,2x1723x501,float32
+3,2nd_selection/receivers_fractures_3_0.0_-150.0_250.0_150.0_25.0_4.0_18.0_18.0.npy,receivers_fractures_3_0.0_-150.0_250.0_150.0_25.0_4.0_18.0_18.0.npy,train,3,0,0.0,-150.0,250.0,150.0,25.0,4.0,18.0,18.0,2x1723x501,float32
+4,2nd_selection/receivers_fractures_4_0.0_-150.0_250.0_150.0_25.0_2.0_4.0_4.0.npy,receivers_fractures_4_0.0_-150.0_250.0_150.0_25.0_2.0_4.0_4.0.npy,train,4,1,0.0,-150.0,250.0,150.0,25.0,2.0,4.0,4.0,2x1723x501,float32
