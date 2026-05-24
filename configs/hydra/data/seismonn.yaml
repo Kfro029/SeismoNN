@@ -9,3 +9,9 @@ normalize: true
 pin_memory: true
 
 input_shape: [2, 1723, 501]
+
+ensure_data: true
+use_dvc: true
+dvc_remote: data_storage
+huggingface_repo_id: FAKIrik/Seismo_datasets
+allow_huggingface_fallback: true

@@ -14,6 +14,7 @@ from omegaconf import DictConfig, OmegaConf
 
 from seismonn.lightning.classifier import SeismoClassifierLightningModule
 from seismonn.lightning.datamodule import SeismoDataModule
+from seismonn.data.download import ensure_data_available
 
 
 def config_to_container(config: DictConfig) -> dict[str, Any]:
@@ -180,6 +181,21 @@ def run_lightning_training(config: DictConfig) -> None:
 
     output_dir.mkdir(parents=True, exist_ok=True)
     plots_dir.mkdir(parents=True, exist_ok=True)
+
+    if bool(config.data.get("ensure_data", False)):
+        ensure_data_available(
+            metadata_path=str(config.data.metadata_path),
+            data_dir="2nd_selection",
+            repo_root=Path(to_absolute_path(".")),
+            use_dvc=bool(config.data.get("use_dvc", True)),
+            dvc_remote=str(config.data.get("dvc_remote", "data_storage")),
+            huggingface_repo_id=str(
+                config.data.get("huggingface_repo_id", "FAKIrik/Seismo_datasets")
+            ),
+            allow_huggingface_fallback=bool(
+                config.data.get("allow_huggingface_fallback", True)
+            ),
+        )
 
     data_module = SeismoDataModule(
         metadata_path=to_absolute_path(str(config.data.metadata_path)),

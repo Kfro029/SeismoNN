@@ -29,7 +29,8 @@ SAMPLE ?= $(shell uv run python -c 'import pandas as pd; print(pd.read_csv("data
 	mlflow-ui benchmark-cnn export-torchscript-cnn export-torchscript-multitask sample-path clean-cache \
 	export-multitask-predictions \
 	train-lightning \
-	results
+	results \
+	dvc-pull-data dvc-pull-models dvc-push-data dvc-push-models
 
 help:
 	@echo "SeismoNN Makefile commands"
@@ -85,6 +86,10 @@ help:
 	@echo "  make export-multitask-predictions Export per-sample multi-task predictions"
 	@echo "  make results                      Generate RESULTS.md from output artifacts"
 	@echo "  make train-lightning              Train CNN baseline with Hydra + PyTorch Lightning"
+	@echo "  make dvc-pull-data                Pull dataset artifacts with DVC"
+@echo "  make dvc-pull-models              Pull model artifacts with DVC"
+@echo "  make dvc-push-data                Push dataset artifacts with DVC"
+@echo "  make dvc-push-models              Push model artifacts with DVC"
 
 sync:
 	$(UV) sync --all-extras --dev
@@ -313,3 +318,15 @@ train-lightning:
 
 train-lightning-local:
 	$(PYTHON) scripts/train_lightning.py tracking.enabled=false
+
+dvc-pull-data:
+	$(UV) run dvc pull -r data_storage
+
+dvc-pull-models:
+	$(UV) run dvc pull -r model_storage
+
+dvc-push-data:
+	$(UV) run dvc push -r data_storage
+
+dvc-push-models:
+	$(UV) run dvc push -r model_storage
