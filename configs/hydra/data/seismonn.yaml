@@ -1,0 +1,11 @@
+metadata_path: data/metadata.csv
+data_root: .
+train_split: train
+val_split: val
+
+batch_size: 16
+num_workers: 2
+normalize: true
+pin_memory: true
+
+input_shape: [2, 1723, 501]

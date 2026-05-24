@@ -1,0 +1,4 @@
+name: cnn_baseline
+in_channels: 2
+num_classes: 3
+dropout: 0.2

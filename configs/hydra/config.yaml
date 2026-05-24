@@ -1,0 +1,20 @@
+defaults:
+  - data: seismonn
+  - model: cnn
+  - optimizer: adamw
+  - trainer: default
+  - tracking: mlflow
+  - _self_
+
+seed: 42
+device: auto
+
+output_dir: outputs/lightning/cnn_baseline
+plots_dir: plots/lightning/cnn_baseline
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null
+  job:
+    chdir: false

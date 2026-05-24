@@ -27,7 +27,8 @@ SAMPLE ?= $(shell uv run python -c 'import pandas as pd; print(pd.read_csv("data
 	evaluate-cnn evaluate-transformer evaluate-transformer-finetuned evaluate-multitask compare \
 	predict predict-multitask api api-multitask docker-build docker-run docker-run-multitask \
 	mlflow-ui benchmark-cnn export-torchscript-cnn export-torchscript-multitask sample-path clean-cache \
-	export-multitask-predictions
+	export-multitask-predictions \
+	train-lightning \
 	results
 
 help:
@@ -83,6 +84,7 @@ help:
 	@echo "  make clean-cache                  Remove local Python/test caches"
 	@echo "  make export-multitask-predictions Export per-sample multi-task predictions"
 	@echo "  make results                      Generate RESULTS.md from output artifacts"
+	@echo "  make train-lightning              Train CNN baseline with Hydra + PyTorch Lightning"
 
 sync:
 	$(UV) sync --all-extras --dev
@@ -305,3 +307,9 @@ export-multitask-predictions:
 clean-cache:
 	rm -rf .pytest_cache .ruff_cache .mypy_cache
 	find . -type d -name "__pycache__" -prune -exec rm -rf {} +
+
+train-lightning:
+	$(PYTHON) scripts/train_lightning.py
+
+train-lightning-local:
+	$(PYTHON) scripts/train_lightning.py tracking.enabled=false
