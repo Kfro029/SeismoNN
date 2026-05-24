@@ -32,7 +32,8 @@ SAMPLE ?= $(shell uv run python -c 'import pandas as pd; print(pd.read_csv("data
 	results \
 	dvc-pull-data dvc-pull-models dvc-push-data dvc-push-models \
 	export-onnx-cnn export-onnx-multitask \
-	export-tensorrt-cnn export-tensorrt-multitask export-tensorrt-cnn-dry-run
+	export-tensorrt-cnn export-tensorrt-multitask export-tensorrt-cnn-dry-run \
+	save-mlflow-model serve-mlflow-model
 
 help:
 	@echo "SeismoNN Makefile commands"
@@ -97,6 +98,8 @@ help:
 	@echo "  make export-tensorrt-cnn          Export CNN ONNX model to TensorRT engine"
 	@echo "  make export-tensorrt-multitask    Export multi-task ONNX model to TensorRT engine"
 	@echo "  make export-tensorrt-cnn-dry-run  Print/check TensorRT export command without TensorRT"
+	@echo "  make save-mlflow-model            Package multi-task checkpoint as MLflow PyFunc model"
+	@echo "  make serve-mlflow-model           Serve packaged MLflow model locally"
 
 sync:
 	$(UV) sync --all-extras --dev
@@ -368,3 +371,17 @@ export-tensorrt-cnn-dry-run:
 		--engine outputs/cnn_baseline/model.engine \
 		--input_shape 2,1723,501 \
 		--dry_run
+
+save-mlflow-model:
+	$(PYTHON) scripts/save_mlflow_model.py \
+		--checkpoint $(MULTITASK_CKPT) \
+		--output outputs/mlflow_models/cnn_multitask \
+		--device cpu \
+		--predictor_type auto
+
+serve-mlflow-model:
+	$(UV) run mlflow models serve \
+		-m outputs/mlflow_models/cnn_multitask \
+		--host 127.0.0.1 \
+		--port 5001 \
+		--no-conda
