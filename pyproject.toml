@@ -49,3 +49,6 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["seismonn"]
+
+[project.scripts]
+seismonn = "seismonn.commands:main"

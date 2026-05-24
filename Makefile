@@ -33,7 +33,8 @@ SAMPLE ?= $(shell uv run python -c 'import pandas as pd; print(pd.read_csv("data
 	dvc-pull-data dvc-pull-models dvc-push-data dvc-push-models \
 	export-onnx-cnn export-onnx-multitask \
 	export-tensorrt-cnn export-tensorrt-multitask export-tensorrt-cnn-dry-run \
-	save-mlflow-model serve-mlflow-model
+	save-mlflow-model serve-mlflow-model \
+	cli-help cli-train cli-validate-data cli-predict cli-export-onnx cli-export-tensorrt-dry-run cli-save-mlflow-model
 
 help:
 	@echo "SeismoNN Makefile commands"
@@ -100,6 +101,13 @@ help:
 	@echo "  make export-tensorrt-cnn-dry-run  Print/check TensorRT export command without TensorRT"
 	@echo "  make save-mlflow-model            Package multi-task checkpoint as MLflow PyFunc model"
 	@echo "  make serve-mlflow-model           Serve packaged MLflow model locally"
+	@echo "  make cli-help                     Show official Fire CLI help"
+	@echo "  make cli-train                    Run official Hydra+Lightning training via seismonn CLI"
+	@echo "  make cli-validate-data            Validate data via seismonn CLI"
+	@echo "  make cli-predict                  Predict via seismonn CLI"
+	@echo "  make cli-export-onnx              Export ONNX via seismonn CLI"
+	@echo "  make cli-export-tensorrt-dry-run  Dry-run TensorRT export via seismonn CLI"
+	@echo "  make cli-save-mlflow-model        Save MLflow model via seismonn CLI"
 
 sync:
 	$(UV) sync --all-extras --dev
@@ -385,3 +393,40 @@ serve-mlflow-model:
 		--host 127.0.0.1 \
 		--port 5001 \
 		--no-conda
+
+cli-help:
+	$(UV) run seismonn --help
+
+cli-train:
+	$(UV) run seismonn train --overrides "trainer.max_epochs=1 tracking.enabled=false"
+
+cli-validate-data:
+	$(UV) run seismonn validate-data --validate_files=False
+
+cli-predict:
+	$(UV) run seismonn predict \
+		--checkpoint $(MULTITASK_CKPT) \
+		--input_path "$(SAMPLE)" \
+		--device $(DEVICE) \
+		--predictor_type auto \
+		--output outputs/seismonn_cli_prediction.json
+
+cli-export-onnx:
+	$(UV) run seismonn export-onnx \
+		--checkpoint $(CNN_CKPT) \
+		--output outputs/cnn_baseline/model.onnx \
+		--device cpu
+
+cli-export-tensorrt-dry-run:
+	$(UV) run seismonn export-tensorrt \
+		--onnx outputs/cnn_baseline/model.onnx \
+		--engine outputs/cnn_baseline/model.engine \
+		--input_shape 2,1723,501 \
+		--dry_run=True
+
+cli-save-mlflow-model:
+	$(UV) run seismonn save-mlflow-model \
+		--checkpoint $(MULTITASK_CKPT) \
+		--output outputs/mlflow_models/cnn_multitask \
+		--device cpu \
+		--predictor_type auto
