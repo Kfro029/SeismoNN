@@ -1,20 +1,16 @@
-# SeismoNN: MLOps-система для анализа сейсмограмм трещиноватых сред
+# SeismoNN: анализ сейсмограмм трещиноватых сред
 
-**SeismoNN** — учебно-исследовательский MLOps-проект для анализа синтетических сейсмических откликов трещиноватых сред. Проект строит воспроизводимый ML-пайплайн: от описания данных и обучения моделей до inference API, Docker, CI и анализа результатов.
+**SeismoNN** — учебно-исследовательский ML/MLOps-проект для предсказания параметров трещиноватой среды по синтетическим сейсмическим данным.
 
-Краткая спецификация проекта находится в [`PROJECT.md`](PROJECT.md), подробное описание датасета — в [`DATASET.md`](DATASET.md). Сводка фактических результатов экспериментов находится в [`RESULTS.md`](RESULTS.md).
-
-## Кратко о задаче
-
-Текущая MVP-задача — классификация количества трещин в среде по сейсмограмме:
+Текущая базовая задача — классификация количества трещин по сейсмограмме:
 
 ```text
-3 трещины
-4 трещины
-5 трещин
+class_id = 0 → 3 трещины
+class_id = 1 → 4 трещины
+class_id = 2 → 5 трещин
 ```
 
-Расширенная постановка уже поддерживается через multi-task baseline:
+Расширенная постановка — multi-task learning:
 
 ```text
 classification:
@@ -27,25 +23,81 @@ regression:
 - angle_spread_deg
 ```
 
-Количество трещин остаётся классификационной целью, потому что это дискретная величина. Непрерывные физические параметры трещин предсказываются регрессионной головой.
+## Документация проекта
+
+Дополнительные документы:
+
+```text
+COURSE_CHECKLIST.md — соответствие требованиям курса и команды для проверки
+PROJECT.md          — обновлённое описание проекта и постановки задачи
+DATASET.md          — подробное описание датасета, ограничений и рисков
+RESULTS.md          — сводка результатов экспериментов
+```
 
 ## Практическая мотивация
 
-Трещиноватые среды встречаются в геофизике, инженерной геологии и задачах анализа подземных структур. Трещины влияют на распространение волн, поэтому по сейсмическому отклику можно оценивать параметры среды.
+Трещиноватые среды встречаются в геофизике, инженерной геологии и задачах анализа подземных структур. Трещины влияют на распространение волн, поэтому по сейсмическому отклику можно пытаться оценивать параметры среды.
 
 Практическая ценность проекта:
 
 ```text
 - автоматизация анализа сейсмических откликов;
-- первичная оценка параметров трещиноватой среды;
-- сравнение CNN, Transformer и self-supervised подходов;
-- воспроизводимый MLOps-пайплайн для экспериментов;
-- подготовка инфраструктуры для будущей проверки на более реалистичных данных.
+- быстрое получение первичной оценки параметров трещиноватой среды;
+- воспроизводимое сравнение разных ML-подходов;
+- подготовка инфраструктуры для CNN, Transformer и self-supervised learning;
+- возможность дальнейшего перехода от синтетических данных к более реалистичным или полевым данным.
 ```
+
+В рамках курса MLOps основной акцент сделан на полном воспроизводимом контуре:
+
+```text
+DVC data management
+  ↓
+metadata validation
+  ↓
+Hydra configs
+  ↓
+PyTorch Lightning training
+  ↓
+MLflow tracking
+  ↓
+checkpoint evaluation
+  ↓
+ONNX / TensorRT export
+  ↓
+MLflow Serving / FastAPI inference
+  ↓
+tests / pre-commit / CI
+```
+
+## Постановка задачи
+
+### Базовая задача
+
+На вход подаётся `.npy` файл с сейсмическим откликом среды. Модель должна предсказать количество трещин:
+
+```text
+3, 4 или 5
+```
+
+Это задача многоклассовой классификации.
+
+### Расширенная задача
+
+В более общей постановке модель также предсказывает физические параметры среды:
+
+```text
+mean_length       — средняя длина трещин
+length_spread     — разброс длин трещин
+mean_angle_deg    — средний угол трещин
+angle_spread_deg  — разброс углов трещин
+```
+
+Для этого реализован CNN multi-task baseline: одна модель имеет classification head для `crack_count` и regression head для физических параметров.
 
 ## Формат входных данных
 
-Каждый объект датасета — `.npy` файл:
+Каждый объект датасета — `.npy` файл с тензором:
 
 ```text
 shape: (2, 1723, 501)
@@ -55,12 +107,12 @@ dtype: float32
 Расшифровка размерностей:
 
 ```text
-2     — компоненты скорости отражённой волны: vx и vy;
-1723  — временные шаги моделирования;
-501   — приёмники / receiver positions на поверхности.
+2     — компоненты скорости отражённой волны: vx и vy
+1723  — число временных шагов моделирования
+501   — число приёмников / receiver positions на поверхности
 ```
 
-Один объект содержит:
+Один входной тензор содержит:
 
 ```text
 2 * 1723 * 501 = 1 726 446 float32 значений
@@ -72,11 +124,11 @@ dtype: float32
 1 726 446 * 4 bytes ≈ 6.6 MiB
 ```
 
-В исходном ТЗ фигурировала форма `(2, 1733, 501)`, но фактическая форма всех файлов текущего датасета — `(2, 1723, 501)`.
+В исходном ТЗ была указана форма `(2, 1733, 501)`, но проверка текущего датасета показала фактическую форму `(2, 1723, 501)`.
 
 ## Формат выходных данных
 
-Для классификационной модели JSON-ответ выглядит так:
+Для classification модели пример JSON-ответа:
 
 ```json
 {
@@ -93,78 +145,43 @@ dtype: float32
 }
 ```
 
-Для multi-task модели ответ дополнительно содержит регрессионные параметры:
+Для multi-task модели пример JSON-ответа:
 
 ```json
 {
   "model_name": "cnn_multitask",
-  "predicted_class_id": 1,
-  "predicted_crack_count": 4,
-  "expected_crack_count": 3.92,
+  "input_path": "sample.npy",
+  "predicted_class_id": 2,
+  "predicted_crack_count": 5,
+  "expected_crack_count": 4.18,
   "class_probabilities": {
-    "3": 0.10,
-    "4": 0.86,
-    "5": 0.04
+    "3": 0.22,
+    "4": 0.36,
+    "5": 0.41
   },
   "regression": {
-    "mean_length": 29.4,
-    "length_spread": 2.2,
-    "mean_angle_deg": 13.7,
-    "angle_spread_deg": 4.5
+    "mean_length": 32.5,
+    "length_spread": 3.9,
+    "mean_angle_deg": 9.0,
+    "angle_spread_deg": 8.9
   }
 }
 ```
 
-`expected_crack_count` считается как математическое ожидание:
+`expected_crack_count` считается как математическое ожидание по вероятностям классов:
 
 ```text
 E[crack_count] = 3 * P(3) + 4 * P(4) + 5 * P(5)
-```
-
-## Пример входного файла
-
-Пример имени файла:
-
-```text
-receivers_fractures_4_0.0_-150.0_250.0_150.0_30.0_2.0_14.0_14.0.npy
-```
-
-Формат имени:
-
-```text
-receivers_fractures_{crack_count}_{cluster_center_x}_{cluster_center_y}_{cluster_half_size_x}_{cluster_half_size_y}_{mean_length}_{length_spread}_{mean_angle_deg}_{angle_spread_deg}.npy
-```
-
-Расшифровка:
-
-```text
-crack_count          = 4
-cluster_center_x     = 0.0
-cluster_center_y     = -150.0
-cluster_half_size_x  = 250.0
-cluster_half_size_y  = 150.0
-mean_length          = 30.0
-length_spread        = 2.0
-mean_angle_deg       = 14.0
-angle_spread_deg     = 14.0
 ```
 
 ## Датасет
 
 Данные являются результатом компьютерного моделирования сейсмических откликов для сред с различными параметрами трещин.
 
-Публичное хранилище:
+Публичное хранилище данных:
 
 ```text
 https://huggingface.co/datasets/FAKIrik/Seismo_datasets
-```
-
-Текущее состояние Hugging Face страницы:
-
-```text
-- общий размер файлов: 17.6 GB;
-- dataset viewer недоступен;
-- dataset card пока отсутствует.
 ```
 
 Текущая MVP-выборка:
@@ -181,101 +198,64 @@ https://huggingface.co/datasets/FAKIrik/Seismo_datasets
 5 трещин: 209 объектов
 ```
 
-Каждый объект описан в:
+Каждый объект описан в `data/metadata.csv`. В git хранится только пример `data/metadata.example.csv`, а основной `metadata.csv` отслеживается через DVC.
 
-```text
-data/metadata.csv
-```
-
-Основные колонки metadata:
-
-```text
-sample_id
-path
-filename
-split
-crack_count
-class_id
-cluster_center_x
-cluster_center_y
-cluster_half_size_x
-cluster_half_size_y
-mean_length
-length_spread
-mean_angle_deg
-angle_spread_deg
-shape
-dtype
-split_seed
-split_strategy
-split_stratify_column
-```
+Подробное описание данных находится в [`DATASET.md`](DATASET.md).
 
 ## Почему данные синтетические
 
-Для реальных трещиноватых сред трудно получить точную supervised-разметку: обычно неизвестны точное количество трещин, длины, углы и положение кластера. Синтетическое моделирование позволяет контролируемо задавать параметры среды и получать точные labels.
-
-Главный риск такого подхода:
+Для реальных трещиноватых сред сложно получить точную supervised-разметку:
 
 ```text
-domain gap
+- точное количество трещин обычно неизвестно;
+- длины и углы трещин не наблюдаются напрямую;
+- положение кластера трещин часто доступно только косвенно;
+- реальные данные могут быть дорогими, закрытыми или шумными.
 ```
 
-Модель, обученная на синтетике, может хуже переноситься на реальные полевые данные. Возможные будущие меры: шумы, аугментации, domain randomization, self-supervised pre-training на неразмеченных данных и fine-tuning на более реалистичных данных.
-
-## Особенности и риски данных
+Синтетическое моделирование позволяет:
 
 ```text
-1. Небольшое число объектов: 665.
-2. Большой размер одного объекта: (2, 1723, 501).
-3. Синтетическая природа данных.
-4. Возможная неоднозначность обратной задачи.
-5. Риск утечки через параметрическую сетку при случайном split.
+- контролируемо задавать параметры среды;
+- получать точные labels;
+- воспроизводимо сравнивать модели;
+- строить supervised и self-supervised пайплайны;
+- проверять MLOps-инфраструктуру до появления field data.
 ```
 
-В проекте используются:
+Главный риск — `domain gap`: модель, обученная на синтетике, может хуже работать на реальных данных.
+
+## Пример имени файла
+
+Пример файла:
 
 ```text
-- metadata.csv для описания данных;
-- lazy loading .npy файлов;
-- np.load(..., mmap_mode="r");
-- фиксированное стратифицированное разбиение;
-- тесты без загрузки полного датасета.
+receivers_fractures_4_0.0_-150.0_250.0_150.0_30.0_2.0_14.0_14.0.npy
 ```
 
-## Train/validation split
-
-Используется фиксированное стратифицированное разбиение по `class_id`:
+Формат имени:
 
 ```text
-train: 532 объекта
-val:   133 объекта
-total: 665 объектов
+receivers_fractures_{crack_count}_{cluster_center_x}_{cluster_center_y}_{cluster_half_size_x}_{cluster_half_size_y}_{mean_length}_{length_spread}_{mean_angle_deg}_{angle_spread_deg}.npy
 ```
 
-Команда генерации split:
-
-```bash
-uv run python scripts/create_split.py \
-  --input data/metadata.csv \
-  --output data/metadata_stratified.csv \
-  --val-size 0.2 \
-  --test-size 0.0 \
-  --seed 42 \
-  --stratify-column class_id
-```
-
-В metadata сохраняются поля:
+Расшифровка примера:
 
 ```text
-split_seed
-split_strategy
-split_stratify_column
+crack_count          = 4
+cluster_center_x     = 0.0
+cluster_center_y     = -150.0
+cluster_half_size_x  = 250.0
+cluster_half_size_y  = 150.0
+mean_length          = 30.0
+length_spread        = 2.0
+mean_angle_deg       = 14.0
+angle_spread_deg     = 14.0
 ```
 
 ## Метрики
 
-Для классификации используются:
+Для classification задачи используются:
 
 ```text
 Cross-Entropy Loss
@@ -288,7 +268,7 @@ Confusion Matrix
 Classification Report
 ```
 
-Для regression targets в multi-task модели используются:
+Для regression targets используются:
 
 ```text
 MAE
@@ -296,7 +276,7 @@ RMSE
 per-target MAE/RMSE
 ```
 
-Для deployment дополнительно измеряются:
+Для inference/deployment также реализованы:
 
 ```text
 latency p50
@@ -311,7 +291,230 @@ throughput samples/sec
 Random baseline для 3 классов: accuracy ≈ 0.33
 Majority-class baseline: accuracy ≈ 228 / 665 ≈ 0.34
 Минимальная цель MVP: accuracy и macro-F1 выше случайного baseline
-Ожидаемый уровень CNN baseline после настройки: accuracy > 0.40–0.50
+```
+
+## Setup
+
+Проект использует `uv`.
+
+Установка зависимостей:
+
+```bash
+uv sync --all-extras --dev
+```
+
+Установка git hooks:
+
+```bash
+uv run pre-commit install
+```
+
+Проверка hooks:
+
+```bash
+uv run pre-commit run -a
+```
+
+Запуск тестов:
+
+```bash
+uv run pytest
+```
+
+## Data management через DVC
+
+Большие данные и модельные артефакты не хранятся в git. Для них используется DVC.
+
+В проекте настроены два DVC remote:
+
+```text
+data_storage   — для датасета и metadata.csv
+model_storage  — для модельных checkpoint-ов
+```
+
+Получить данные:
+
+```bash
+uv run dvc pull -r data_storage
+```
+
+Получить модельные артефакты:
+
+```bash
+uv run dvc pull -r model_storage
+```
+
+Если DVC remote недоступен, используется fallback-загрузка из Hugging Face:
+
+```bash
+uv run seismonn download-data
+```
+
+Параметры загрузки находятся в Hydra-конфиге:
+
+```text
+configs/hydra/data/seismonn.yaml
+```
+
+## Валидация данных
+
+Проверка `metadata.csv` без чтения всех `.npy` файлов:
+
+```bash
+uv run seismonn validate-data --validate_files=False
+```
+
+Проверка metadata и реальных `.npy` файлов:
+
+```bash
+uv run seismonn validate-data --validate_files=True
+```
+
+Скрипт проверяет:
+
+```text
+- наличие обязательных колонок;
+- отсутствие дубликатов sample_id, path, filename;
+- корректность split;
+- соответствие class_id и crack_count;
+- shape из metadata.csv;
+- dtype из metadata.csv;
+- существование .npy файлов;
+- реальный shape и dtype .npy файлов.
+```
+
+## Просмотр и визуализация одного объекта
+
+Информация об одном объекте:
+
+```bash
+uv run python scripts/inspect_sample.py \
+  --metadata data/metadata.csv \
+  --data-root . \
+  --index 0
+```
+
+Визуализация одного объекта:
+
+```bash
+uv run python scripts/visualize_sample.py \
+  --metadata data/metadata.csv \
+  --data-root . \
+  --index 0 \
+  --output-dir outputs/sample_visualization_small \
+  --max-time-steps 400 \
+  --max-receivers 200
+```
+
+Создаются:
+
+```text
+vx_heatmap.png
+vy_heatmap.png
+vx_receiver_trace.png
+vy_receiver_trace.png
+sample_info.json
+```
+
+## Train: Hydra + PyTorch Lightning
+
+Основной baseline training pipeline для проверки задания реализован через Hydra + PyTorch Lightning.
+
+Короткий запуск без MLflow-сервера:
+
+```bash
+uv run seismonn train --overrides "trainer.max_epochs=1 tracking.enabled=false data.ensure_data=false"
+```
+
+Запуск MLflow tracking server на адресе из задания:
+
+```bash
+uv run mlflow server \
+  --host 127.0.0.1 \
+  --port 8080 \
+  --backend-store-uri ./mlruns \
+  --default-artifact-root ./mlartifacts
+```
+
+После этого обучение можно запустить так:
+
+```bash
+uv run seismonn train --overrides "trainer.max_epochs=5"
+```
+
+Hydra-конфиги:
+
+```text
+configs/hydra/config.yaml
+configs/hydra/data/seismonn.yaml
+configs/hydra/model/cnn.yaml
+configs/hydra/optimizer/adamw.yaml
+configs/hydra/trainer/default.yaml
+configs/hydra/tracking/mlflow.yaml
+```
+
+Главный Hydra-конфиг содержит defaults:
+
+```yaml
+defaults:
+  - data: seismonn
+  - model: cnn
+  - optimizer: adamw
+  - trainer: default
+  - tracking: mlflow
+  - _self_
+```
+
+Артефакты Lightning training:
+
+```text
+outputs/lightning/cnn_baseline/
+plots/lightning/cnn_baseline/
+```
+
+Графики обучения:
+
+```text
+plots/lightning/cnn_baseline/train_loss.png
+plots/lightning/cnn_baseline/val_loss.png
+plots/lightning/cnn_baseline/val_accuracy.png
+plots/lightning/cnn_baseline/val_macro_f1.png
+```
+
+## Дополнительные research pipelines
+
+Помимо основного Lightning/Hydra baseline, в проекте есть исследовательские пайплайны.
+
+CNN baseline:
+
+```bash
+uv run python scripts/train.py --config configs/train/cnn.yaml
+```
+
+Supervised Trace Transformer:
+
+```bash
+uv run python scripts/train.py --config configs/train/transformer.yaml
+```
+
+Self-supervised masked trace pre-training:
+
+```bash
+uv run python scripts/pretrain_transformer.py \
+  --config configs/pretrain/trace_transformer.yaml
+```
+
+Fine-tuning Transformer после pre-training:
+
+```bash
+uv run python scripts/train.py --config configs/train/transformer_finetune.yaml
+```
+
+CNN multi-task baseline:
+
+```bash
+uv run python scripts/train_multitask.py \
+  --config configs/train/cnn_multitask.yaml
 ```
 
 ## Реализованные модели
@@ -328,28 +531,9 @@ AdaptiveAvgPool2d
 Linear → ReLU → Dropout → Linear
 ```
 
-Вход:
-
-```text
-[B, 2, 1723, 501]
-```
-
-Выход:
-
-```text
-[B, 3]
-```
-
 ### Trace Transformer classifier
 
-Transformer-модель вдохновлена статьёй:
-
-```text
-StorSeismic: A new paradigm in deep learning for seismic processing
-https://arxiv.org/abs/2205.00222
-```
-
-Адаптация к сейсмическим данным:
+Идея:
 
 ```text
 1. Каждый receiver / trace рассматривается как токен.
@@ -360,7 +544,14 @@ https://arxiv.org/abs/2205.00222
 6. Classification head предсказывает количество трещин.
 ```
 
-### Self-supervised masked trace pre-training
+Модель вдохновлена статьёй:
+
+```text
+StorSeismic: A new paradigm in deep learning for seismic processing
+https://arxiv.org/abs/2205.00222
+```
+
+### Self-supervised pre-training
 
 Задача pre-training:
 
@@ -368,7 +559,7 @@ https://arxiv.org/abs/2205.00222
 masked trace reconstruction
 ```
 
-Схема:
+Идея:
 
 ```text
 1. Берётся сейсмограмма x с формой [B, 2, T, R].
@@ -378,13 +569,9 @@ masked trace reconstruction
 5. MSE loss считается только на замаскированных receiver-трассах.
 ```
 
-### Fine-tuning после pre-training
+### Multi-task CNN
 
-После self-supervised pre-training веса `temporal_encoder.*` и `encoder.*` переносятся в supervised Transformer-классификатор. Голова реконструкции не переносится, потому что в supervised задаче используется classification head.
-
-### CNN multi-task baseline
-
-Модель одновременно решает классификацию и регрессию:
+Модель одновременно предсказывает:
 
 ```text
 classification:
@@ -401,244 +588,24 @@ Loss:
 
 ```text
 total_loss = classification_loss + regression_loss_weight * regression_loss
-classification_loss = CrossEntropyLoss
-regression_loss = MSELoss по нормализованным regression targets
 ```
 
-## Установка
+## Infer через CLI
 
-Проект использует `uv`.
+Рекомендуемый CLI inference через Fire CLI:
 
 ```bash
-uv sync
+uv run seismonn predict \
+  --checkpoint outputs/cnn_multitask_50ep/best.pt \
+  --input_path 2nd_selection/<sample_name>.npy \
+  --device cpu \
+  --predictor_type auto \
+  --output outputs/seismonn_cli_prediction.json
 ```
 
-Установка с dev-зависимостями:
+## Оценка checkpoint
 
-```bash
-uv sync --all-extras --dev
-```
-
-Все команды рекомендуется запускать из корня репозитория.
-
-## Makefile
-
-Основные команды вынесены в `Makefile`.
-
-Показать список доступных команд:
-
-```bash
-make help
-```
-
-Базовые проверки:
-
-```bash
-make test
-make lint
-make check
-```
-
-Работа с данными:
-
-```bash
-make validate-metadata
-make validate-files
-make inspect-sample
-make visualize-sample
-```
-
-Обучение:
-
-```bash
-make train-cnn
-make train-transformer
-make pretrain-transformer
-make train-transformer-finetuned
-make train-multitask
-```
-
-Inference и deployment:
-
-```bash
-make predict
-make predict-multitask
-make api
-make api-multitask
-make docker-build
-make docker-run
-make docker-run-multitask
-make results
-```
-
-Некоторые переменные можно переопределить:
-
-```bash
-make predict SAMPLE=2nd_selection/<sample_name>.npy
-make api PORT=8080 DEVICE=cpu
-make evaluate-cnn CNN_CKPT=outputs/cnn_baseline_50ep/best.pt
-```
-
-## Работа с данными
-
-### Генерация metadata.csv
-
-```bash
-uv run python scripts/build_metadata.py \
-  --split-json 2nd_sel.json \
-  --data-dir 2nd_selection \
-  --output data/metadata.csv \
-  --test-split-name val \
-  --validate-files
-```
-
-### Валидация metadata и .npy файлов
-
-Только metadata:
-
-```bash
-uv run python scripts/validate_metadata.py \
-  --metadata data/metadata.csv \
-  --data-root . \
-  --expected-shape 2 1723 501 \
-  --expected-dtype float32 \
-  --expected-splits train val
-```
-
-Metadata + реальные `.npy` файлы:
-
-```bash
-uv run python scripts/validate_metadata.py \
-  --metadata data/metadata.csv \
-  --data-root . \
-  --expected-shape 2 1723 501 \
-  --expected-dtype float32 \
-  --expected-splits train val \
-  --validate-files \
-  --output outputs/metadata_validation.json
-```
-
-### Анализ одного sample
-
-```bash
-uv run python scripts/inspect_sample.py \
-  --metadata data/metadata.csv \
-  --data-root . \
-  --index 0
-```
-
-### Визуализация одного sample
-
-```bash
-uv run python scripts/visualize_sample.py \
-  --metadata data/metadata.csv \
-  --data-root . \
-  --index 0 \
-  --output-dir outputs/sample_visualization_small \
-  --max-time-steps 400 \
-  --max-receivers 200
-```
-
-Скрипт сохраняет:
-
-```text
-vx_heatmap.png
-vy_heatmap.png
-vx_receiver_trace.png
-vy_receiver_trace.png
-sample_info.json
-```
-
-## Обучение
-
-CNN baseline:
-
-```bash
-uv run python scripts/train.py --config configs/train/cnn.yaml
-```
-
-Trace Transformer:
-
-```bash
-uv run python scripts/train.py --config configs/train/transformer.yaml
-```
-
-Self-supervised pre-training:
-
-```bash
-uv run python scripts/pretrain_transformer.py \
-  --config configs/pretrain/trace_transformer.yaml
-```
-
-Fine-tuning после pre-training:
-
-```bash
-uv run python scripts/train.py \
-  --config configs/train/transformer_finetune.yaml
-```
-
-CNN multi-task baseline:
-
-```bash
-uv run python scripts/train_multitask.py \
-  --config configs/train/cnn_multitask.yaml
-```
-
-Артефакты обучения сохраняются в `outputs/`:
-
-```text
-best.pt
-last.pt
-history.csv
-metrics.json
-loss.png
-accuracy.png
-macro_f1.png
-confusion_matrix.png
-```
-
-`outputs/` не коммитится в git.
-
-## MLflow tracking
-
-MLflow включается в training config:
-
-```yaml
-tracking:
-  enabled: true
-  tracking_uri: mlruns
-  experiment_name: seismonn
-  run_name: cnn_baseline
-  log_artifacts: true
-```
-
-При обучении логируются:
-
-```text
-- параметры конфига;
-- train/validation метрики;
-- финальные метрики;
-- checkpoint-и;
-- графики;
-- metrics.json;
-- history.csv.
-```
-
-Запуск UI:
-
-```bash
-uv run mlflow ui --backend-store-uri mlruns
-```
-
-Адрес:
-
-```text
-http://127.0.0.1:5000
-```
-
-## Оценка и сравнение моделей
-
-### Оценка classification checkpoint
+Оценка classification checkpoint:
 
 ```bash
 uv run python scripts/evaluate_checkpoint.py \
@@ -650,7 +617,7 @@ uv run python scripts/evaluate_checkpoint.py \
   --output outputs/cnn_baseline/evaluation_val.json
 ```
 
-### Оценка multi-task checkpoint
+Оценка multi-task checkpoint:
 
 ```bash
 uv run python scripts/evaluate_multitask_checkpoint.py \
@@ -662,20 +629,21 @@ uv run python scripts/evaluate_multitask_checkpoint.py \
   --output outputs/cnn_multitask_50ep/evaluation_val.json
 ```
 
-### Сравнение нескольких evaluation reports
+Сравнение evaluation reports:
 
 ```bash
 uv run python scripts/compare_evaluations.py \
   --reports \
     outputs/cnn_baseline/evaluation_val.json \
     outputs/trace_transformer/evaluation_val.json \
-    outputs/trace_transformer_finetuned/evaluation_val.json \
     outputs/cnn_multitask_50ep/evaluation_val.json \
   --output-csv outputs/model_comparison.csv \
   --output-md outputs/model_comparison.md
 ```
 
-### Per-sample multi-task predictions
+## Per-sample multi-task predictions
+
+Для анализа регрессионных предсказаний можно сохранить таблицу `true vs predicted` по каждому объекту validation split:
 
 ```bash
 uv run python scripts/export_multitask_predictions.py \
@@ -689,7 +657,7 @@ uv run python scripts/export_multitask_predictions.py \
   --plots-dir outputs/cnn_multitask_50ep/parity_plots
 ```
 
-Сохраняются:
+Скрипт сохраняет:
 
 ```text
 predictions_val.csv
@@ -700,41 +668,137 @@ parity_plots/parity_mean_angle_deg.png
 parity_plots/parity_angle_spread_deg.png
 ```
 
-## CLI inference
+## Production preparation
 
-Classification checkpoint:
+### ONNX export
+
+Экспорт classification checkpoint в ONNX:
 
 ```bash
-uv run python scripts/predict.py \
+uv run seismonn export-onnx \
   --checkpoint outputs/cnn_baseline/best.pt \
-  --input 2nd_selection/<sample_name>.npy \
-  --output outputs/sample_prediction.json
+  --output outputs/cnn_baseline/model.onnx \
+  --device cpu
 ```
 
-Multi-task checkpoint:
+Экспорт multi-task checkpoint в ONNX:
 
 ```bash
-uv run python scripts/predict_multitask.py \
+uv run seismonn export-onnx \
   --checkpoint outputs/cnn_multitask_50ep/best.pt \
-  --input 2nd_selection/<sample_name>.npy \
-  --device cpu \
-  --output outputs/cnn_multitask_50ep/sample_multitask_prediction.json
+  --output outputs/cnn_multitask_50ep/model.onnx \
+  --device cpu
 ```
 
-Получить пример пути из metadata:
+ONNX export реализован в:
+
+```text
+seismonn/exporting/onnx.py
+```
+
+### TensorRT export
+
+Dry-run TensorRT export:
 
 ```bash
-uv run python - <<'PY'
-import pandas as pd
+uv run seismonn export-tensorrt \
+  --onnx outputs/cnn_baseline/model.onnx \
+  --engine outputs/cnn_baseline/model.engine \
+  --input_shape 2,1723,501 \
+  --dry_run=True
+```
 
-df = pd.read_csv("data/metadata.csv")
-print(df.iloc[0]["path"])
+Для настоящего TensorRT export требуется установленный NVIDIA TensorRT и доступный `trtexec`:
+
+```bash
+uv run seismonn export-tensorrt \
+  --onnx outputs/cnn_baseline/model.onnx \
+  --engine outputs/cnn_baseline/model.engine \
+  --input_shape 2,1723,501
+```
+
+TensorRT wrapper реализован в:
+
+```text
+seismonn/exporting/tensorrt.py
+scripts/export_tensorrt.py
+scripts/export_tensorrt.sh
+```
+
+### TorchScript export
+
+Дополнительно реализован TorchScript export:
+
+```bash
+uv run python scripts/export_torchscript.py \
+  --checkpoint outputs/cnn_baseline/best.pt \
+  --output outputs/cnn_baseline/model_torchscript.pt \
+  --device cpu
+```
+
+## Inference server: MLflow Serving
+
+Сначала нужно сохранить checkpoint как MLflow PyFunc model:
+
+```bash
+uv run seismonn save-mlflow-model \
+  --checkpoint outputs/cnn_multitask_50ep/best.pt \
+  --output outputs/mlflow_models/cnn_multitask \
+  --device cpu \
+  --predictor_type auto
+```
+
+Затем поднять MLflow Serving:
+
+```bash
+uv run mlflow models serve \
+  -m outputs/mlflow_models/cnn_multitask \
+  --host 127.0.0.1 \
+  --port 5001 \
+  --no-conda
+```
+
+Пример запроса:
+
+```bash
+export SAMPLE=2nd_selection/<sample_name>.npy
+
+uv run python - <<'PY'
+import json
+import os
+import urllib.request
+
+sample = os.environ["SAMPLE"]
+
+payload = {
+    "inputs": [
+        [sample]
+    ]
+}
+
+request = urllib.request.Request(
+    "http://127.0.0.1:5001/invocations",
+    data=json.dumps(payload).encode("utf-8"),
+    headers={"Content-Type": "application/json"},
+    method="POST",
+)
+
+with urllib.request.urlopen(request) as response:
+    print(json.dumps(json.loads(response.read()), indent=2, ensure_ascii=False))
 PY
+```
+
+MLflow Serving model реализован в:
+
+```text
+seismonn/serving/mlflow_model.py
 ```
 
 ## FastAPI inference service
 
-Classification checkpoint:
+Дополнительно реализован FastAPI inference service.
+
+Запуск с classification checkpoint:
 
 ```bash
 SEISMONN_CHECKPOINT=outputs/cnn_baseline/best.pt \
@@ -742,7 +806,7 @@ SEISMONN_PREDICTOR_TYPE=auto \
 uv run uvicorn seismonn.api.main:app --host 127.0.0.1 --port 8000
 ```
 
-Multi-task checkpoint:
+Запуск с multi-task checkpoint:
 
 ```bash
 SEISMONN_CHECKPOINT=outputs/cnn_multitask_50ep/best.pt \
@@ -750,7 +814,7 @@ SEISMONN_PREDICTOR_TYPE=auto \
 uv run uvicorn seismonn.api.main:app --host 127.0.0.1 --port 8000
 ```
 
-Healthcheck:
+Проверка:
 
 ```bash
 curl -s http://127.0.0.1:8000/health | python -m json.tool
@@ -765,22 +829,15 @@ curl -s -X POST \
   | python -m json.tool
 ```
 
-API автоматически определяет тип checkpoint:
-
-```text
-cnn_baseline / trace_transformer → classification predictor
-cnn_multitask                   → multi-task predictor
-```
-
 ## Docker
 
-Сборка image:
+Сборка Docker image:
 
 ```bash
 docker build -t seismonn-api .
 ```
 
-Classification checkpoint:
+Запуск FastAPI Docker service с classification checkpoint:
 
 ```bash
 docker run --rm \
@@ -792,7 +849,7 @@ docker run --rm \
   seismonn-api
 ```
 
-Multi-task checkpoint:
+Запуск FastAPI Docker service с multi-task checkpoint:
 
 ```bash
 docker run --rm \
@@ -804,7 +861,9 @@ docker run --rm \
   seismonn-api
 ```
 
-## Benchmark инференса
+## Inference benchmark
+
+Benchmark inference:
 
 ```bash
 uv run python scripts/benchmark_inference.py \
@@ -825,72 +884,95 @@ p50 / p95 / p99
 throughput samples/sec
 ```
 
-## TorchScript export
+## Makefile
 
-Classification checkpoint:
+Основные команды вынесены в `Makefile`.
 
-```bash
-uv run python scripts/export_torchscript.py \
-  --checkpoint outputs/cnn_baseline/best.pt \
-  --output outputs/cnn_baseline/model_torchscript.pt \
-  --device cpu
-```
-
-Multi-task checkpoint:
+Показать список команд:
 
 ```bash
-uv run python scripts/export_torchscript.py \
-  --checkpoint outputs/cnn_multitask_50ep/best.pt \
-  --output outputs/cnn_multitask_50ep/model_torchscript.pt \
-  --device cpu
+make help
 ```
 
-После экспорта создаются:
+Проверки:
 
-```text
-model_torchscript.pt
-model_torchscript.metadata.json
+```bash
+make test
+make lint
+make check
 ```
 
-Для classification модели TorchScript возвращает:
+DVC:
 
-```text
-logits: [B, 3]
+```bash
+make dvc-pull-data
+make dvc-pull-models
 ```
 
-Для multi-task модели TorchScript возвращает:
+Train:
 
-```text
-logits:     [B, 3]
-regression: [B, 4]
+```bash
+make train-lightning
+make train-lightning-local
 ```
 
-## Тесты, code quality и CI
+Inference:
 
-Запуск всех тестов:
+```bash
+make predict
+make predict-multitask
+```
+
+Export:
+
+```bash
+make export-onnx-cnn
+make export-onnx-multitask
+make export-tensorrt-cnn-dry-run
+```
+
+MLflow Serving:
+
+```bash
+make save-mlflow-model
+make serve-mlflow-model
+```
+
+## Tests and code quality
+
+Запуск pre-commit:
+
+```bash
+uv run pre-commit run -a
+```
+
+Запуск тестов:
 
 ```bash
 uv run pytest
 ```
 
-Pre-commit:
+## CI
 
-```bash
-uv run pre-commit run --all-files
-```
-
-CI:
+CI workflow:
 
 ```text
 .github/workflows/ci.yaml
 ```
 
-CI запускается на push и pull request и проверяет:
+CI запускается на:
 
 ```text
-pre-commit checks
-pytest tests
-Docker image build
+push
+pull_request
+```
+
+CI проверяет:
+
+```text
+pre-commit
+pytest
+docker build
 ```
 
 ## Структура проекта
@@ -898,39 +980,36 @@ Docker image build
 ```text
 SeismoNN/
 ├── configs/
+│   ├── hydra/
 │   ├── pretrain/
 │   └── train/
 ├── data/
-│   └── metadata.csv
+│   ├── metadata.csv.dvc
+│   └── metadata.example.csv
+├── models/
+│   └── cnn_multitask_50ep/
+│       └── best.pt.dvc
 ├── scripts/
-│   ├── build_metadata.py
-│   ├── create_split.py
-│   ├── train.py
-│   ├── train_multitask.py
-│   ├── pretrain_transformer.py
-│   ├── predict.py
-│   ├── predict_multitask.py
-│   ├── evaluate_checkpoint.py
-│   ├── evaluate_multitask_checkpoint.py
-│   ├── compare_evaluations.py
-│   ├── export_multitask_predictions.py
-│   ├── export_torchscript.py
-│   ├── benchmark_inference.py
-│   ├── inspect_sample.py
-│   ├── validate_metadata.py
-│   └── visualize_sample.py
 ├── seismonn/
 │   ├── api/
 │   ├── data/
 │   ├── evaluation/
 │   ├── exporting/
 │   ├── inference/
+│   ├── lightning/
 │   ├── models/
+│   ├── reporting/
+│   ├── serving/
 │   ├── tracking/
-│   └── training/
+│   ├── training/
+│   └── commands.py
 ├── tests/
+├── .dvc/
+├── .github/workflows/
+├── COURSE_CHECKLIST.md
 ├── DATASET.md
 ├── PROJECT.md
+├── RESULTS.md
 ├── Dockerfile
 ├── Makefile
 ├── pyproject.toml
@@ -941,33 +1020,36 @@ SeismoNN/
 ## Что уже реализовано
 
 ```text
-- metadata.csv и описание датасета;
-- DATASET.md и PROJECT.md;
-- reproducible stratified split;
-- validation metadata и .npy файлов;
-- sample inspection и visualization;
-- PyTorch Dataset;
-- CNN classification baseline;
-- Trace Transformer classifier;
-- masked trace self-supervised pre-training;
-- fine-tuning Transformer после pre-training;
-- CNN multi-task baseline: classification + regression;
-- расширенные метрики классификации;
-- regression MAE/RMSE для multi-task модели;
-- MLflow experiment tracking;
-- checkpoint evaluation;
-- model comparison from evaluation reports;
-- per-sample multi-task prediction export;
-- parity plots для regression targets;
-- CLI inference;
-- universal FastAPI inference;
-- Docker deployment;
-- inference benchmark;
-- TorchScript export;
-- Makefile;
-- pytest tests;
-- pre-commit;
-- GitHub Actions CI.
+Metadata-based dataset description
+DVC data/model artifact management
+download_data / ensure_data_available
+Hydra hierarchical configs
+PyTorch Lightning baseline training
+Fire CLI entrypoint
+Pre-commit + Ruff
+Pytest test suite
+GitHub Actions CI
+MLflow tracking
+MLflow Serving
+FastAPI inference service
+Docker deployment
+CNN classification baseline
+Trace Transformer classifier
+Self-supervised masked trace pre-training
+Transformer fine-tuning after pre-training
+CNN multi-task baseline: classification + regression
+Multi-task inference
+Multi-task checkpoint evaluation
+Per-sample multi-task prediction export
+Parity plots for regression targets
+ONNX export
+TensorRT export wrapper
+TorchScript export
+Inference benchmark
+DATASET.md
+PROJECT.md
+RESULTS.md
+COURSE_CHECKLIST.md
 ```
 
 ## Что планируется добавить
@@ -979,60 +1061,69 @@ SeismoNN/
 2. Официальный test split:
    отдельная тестовая выборка, которая не используется при выборе гиперпараметров.
 
-3. Multi-task Transformer:
-   расширение multi-task постановки с CNN baseline на Transformer encoder.
+3. Triton Inference Server:
+   сейчас реализован MLflow Serving, но Triton можно добавить как более production-oriented inference server.
 
-4. Аугментации данных:
-   шум, receiver dropout, crop/pad/resample.
+4. ONNX/TensorRT для Transformer и multi-task моделей:
+   сейчас основной ONNX/TensorRT path проверен на CNN baseline.
 
-5. DVC remote или другой воспроизводимый способ загрузки данных:
-   сейчас данные не хранятся в git, но нужен явно настроенный внешний storage.
-
-6. Проверка на более реалистичных или реальных данных:
+5. Проверка на более реалистичных или реальных данных:
    оценка domain gap между синтетическими и field-data сейсмограммами.
 
-7. ONNX или torch.export:
-   более современный deployment export, если это потребуется.
+6. Улучшение DVC remote:
+   заменить локальный storage на полностью доступный преподавателям внешний remote.
 ```
 
 ## Ограничения текущей версии
 
 ```text
-- данные синтетические;
-- текущая MVP-выборка содержит 665 объектов;
-- нет отдельного официального test split;
-- перенос на реальные field data пока не проверялся;
-- возможен domain gap;
-- возможна утечка близких параметрических конфигураций между train и validation;
-- Transformer и self-supervised pipeline являются экспериментальными;
-- multi-task regression baseline реализован только для CNN;
-- TorchScript export добавлен, но ONNX / torch.export пока не реализованы.
+- Данные синтетические.
+- Количество объектов небольшое: 665.
+- Нет отдельного официального test split.
+- Реальный перенос на field-data пока не проверялся.
+- Validation split стратифицирован, но пока не является group split.
+- TensorRT engine создаётся только при наличии установленного NVIDIA TensorRT/trtexec.
+- DVC remote может быть локальным; для полной внешней воспроизводимости нужен доступный внешний remote.
+- Transformer и self-supervised pipeline реализованы, но требуют дополнительных долгих экспериментов для устойчивого качества.
 ```
 
 ## Краткий итог
 
-SeismoNN — это воспроизводимый MLOps-пайплайн для анализа сейсмических откликов трещиноватых сред.
-
-Текущий pipeline:
+Текущая версия SeismoNN закрывает полный MLOps-контур:
 
 ```text
-данные
-  ↓
-metadata.csv
+data management
   ↓
 validation
   ↓
-training
+Hydra configs
   ↓
-tracking
+PyTorch Lightning training
   ↓
-evaluation
+MLflow tracking
   ↓
-inference
+checkpoint evaluation
   ↓
-API / Docker
+ONNX / TensorRT export
   ↓
-CI
+MLflow Serving
+  ↓
+tests / pre-commit / CI
 ```
 
-Проект уже поддерживает классификацию количества трещин, multi-task baseline для регрессии физических параметров, Transformer-модель, self-supervised pre-training и полный набор MLOps-компонентов для воспроизводимых экспериментов.
+Основная MVP-задача:
+
+```text
+классификация количества трещин: 3 / 4 / 5
+```
+
+Расширенная задача:
+
+```text
+classification + regression:
+  crack_count
+  mean_length
+  length_spread
+  mean_angle_deg
+  angle_spread_deg
+```
