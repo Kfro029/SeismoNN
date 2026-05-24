@@ -31,7 +31,8 @@ SAMPLE ?= $(shell uv run python -c 'import pandas as pd; print(pd.read_csv("data
 	train-lightning \
 	results \
 	dvc-pull-data dvc-pull-models dvc-push-data dvc-push-models \
-	export-onnx-cnn export-onnx-multitask
+	export-onnx-cnn export-onnx-multitask \
+	export-tensorrt-cnn export-tensorrt-multitask export-tensorrt-cnn-dry-run
 
 help:
 	@echo "SeismoNN Makefile commands"
@@ -93,6 +94,9 @@ help:
 	@echo "  make dvc-push-models              Push model artifacts with DVC"
 	@echo "  make export-onnx-cnn              Export CNN checkpoint to ONNX"
 	@echo "  make export-onnx-multitask        Export multi-task checkpoint to ONNX"
+	@echo "  make export-tensorrt-cnn          Export CNN ONNX model to TensorRT engine"
+	@echo "  make export-tensorrt-multitask    Export multi-task ONNX model to TensorRT engine"
+	@echo "  make export-tensorrt-cnn-dry-run  Print/check TensorRT export command without TensorRT"
 
 sync:
 	$(UV) sync --all-extras --dev
@@ -345,3 +349,22 @@ export-onnx-multitask:
 		--checkpoint $(MULTITASK_CKPT) \
 		--output outputs/cnn_multitask_50ep/model.onnx \
 		--device cpu
+
+export-tensorrt-cnn:
+	$(PYTHON) scripts/export_tensorrt.py \
+		--onnx outputs/cnn_baseline/model.onnx \
+		--engine outputs/cnn_baseline/model.engine \
+		--input_shape 2,1723,501
+
+export-tensorrt-multitask:
+	$(PYTHON) scripts/export_tensorrt.py \
+		--onnx outputs/cnn_multitask_50ep/model.onnx \
+		--engine outputs/cnn_multitask_50ep/model.engine \
+		--input_shape 2,1723,501
+
+export-tensorrt-cnn-dry-run:
+	$(PYTHON) scripts/export_tensorrt.py \
+		--onnx outputs/cnn_baseline/model.onnx \
+		--engine outputs/cnn_baseline/model.engine \
+		--input_shape 2,1723,501 \
+		--dry_run
