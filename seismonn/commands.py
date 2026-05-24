@@ -38,18 +38,33 @@ def run_command(command: list[str]) -> None:
     subprocess.run(command, check=True)
 
 
-def parse_input_shape(input_shape: str | None) -> tuple[int, int, int] | None:
-    """Parse input shape from CLI string.
+def parse_input_shape(input_shape: Any | None) -> tuple[int, int, int] | None:
+    """Parse input shape from CLI value.
 
     Supports:
     - "2,1723,501"
     - "2x1723x501"
+    - "(2, 1723, 501)"
+    - [2, 1723, 501]
+    - (2, 1723, 501)
     """
     if input_shape is None:
         return None
 
-    normalized = str(input_shape).replace("x", ",")
-    parts = [part.strip() for part in normalized.split(",") if part.strip()]
+    if isinstance(input_shape, (list, tuple)):
+        if len(input_shape) != 3:
+            raise ValueError(
+                f"Expected input_shape with 3 dimensions, got {input_shape!r}."
+            )
+        return tuple(int(part) for part in input_shape)
+
+    normalized = str(input_shape)
+    normalized = normalized.strip()
+    normalized = normalized.strip("()[]")
+    normalized = normalized.replace("x", ",")
+    normalized = normalized.replace(" ", "")
+
+    parts = [part for part in normalized.split(",") if part]
 
     if len(parts) != 3:
         raise ValueError(
