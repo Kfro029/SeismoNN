@@ -26,3 +26,8 @@ mlruns/
 models/**/*.pt
 models/**/*.pth
 models/**/*.ckpt
+
+# Exported deployment artifacts
+*.onnx
+*.engine
+*.plan

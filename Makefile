@@ -30,7 +30,8 @@ SAMPLE ?= $(shell uv run python -c 'import pandas as pd; print(pd.read_csv("data
 	export-multitask-predictions \
 	train-lightning \
 	results \
-	dvc-pull-data dvc-pull-models dvc-push-data dvc-push-models
+	dvc-pull-data dvc-pull-models dvc-push-data dvc-push-models \
+	export-onnx-cnn export-onnx-multitask
 
 help:
 	@echo "SeismoNN Makefile commands"
@@ -87,9 +88,11 @@ help:
 	@echo "  make results                      Generate RESULTS.md from output artifacts"
 	@echo "  make train-lightning              Train CNN baseline with Hydra + PyTorch Lightning"
 	@echo "  make dvc-pull-data                Pull dataset artifacts with DVC"
-@echo "  make dvc-pull-models              Pull model artifacts with DVC"
-@echo "  make dvc-push-data                Push dataset artifacts with DVC"
-@echo "  make dvc-push-models              Push model artifacts with DVC"
+	@echo "  make dvc-pull-models              Pull model artifacts with DVC"
+	@echo "  make dvc-push-data                Push dataset artifacts with DVC"
+	@echo "  make dvc-push-models              Push model artifacts with DVC"
+	@echo "  make export-onnx-cnn              Export CNN checkpoint to ONNX"
+	@echo "  make export-onnx-multitask        Export multi-task checkpoint to ONNX"
 
 sync:
 	$(UV) sync --all-extras --dev
@@ -330,3 +333,15 @@ dvc-push-data:
 
 dvc-push-models:
 	$(UV) run dvc push -r model_storage
+
+	export-onnx-cnn:
+	$(PYTHON) scripts/export_onnx.py \
+		--checkpoint $(CNN_CKPT) \
+		--output outputs/cnn_baseline/model.onnx \
+		--device cpu
+
+export-onnx-multitask:
+	$(PYTHON) scripts/export_onnx.py \
+		--checkpoint $(MULTITASK_CKPT) \
+		--output outputs/cnn_multitask_50ep/model.onnx \
+		--device cpu
