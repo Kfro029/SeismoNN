@@ -1,33 +1,72 @@
 # Python-generated files
 __pycache__/
-*.py[oc]
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Build artifacts
 build/
 dist/
 wheels/
-*.egg-info
+*.egg-info/
+.eggs/
 
-# Virtual environments
-.venv
-.dockerignore
+# Test/cache artifacts
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
 
-#my files
+# Jupyter
+.ipynb_checkpoints/
+
+# Local data
 2nd_selection/
-/2nd_selection
+data/metadata.csv
 
+# DVC local files/cache
+.dvc/tmp/
+.dvc/cache/
 
+# Training/runtime outputs
 outputs/
-checkpints/
+checkpoints/
+plots/
 mlruns/
+mlartifacts/
+mlflow.db
+train_lightning.log
+*.log
+
+# Model artifacts
 *.pt
 *.pth
 *.ckpt
-
-# Model artifacts
-models/**/*.pt
-models/**/*.pth
-models/**/*.ckpt
-
-# Exported deployment artifacts
 *.onnx
 *.engine
 *.plan
+
+# Model artifacts under models/
+models/**/*.pt
+models/**/*.pth
+models/**/*.ckpt
+models/**/*.onnx
+models/**/*.engine
+models/**/*.plan
+
+# Local environment files
+.env
+.env.*
+*.local
+
+# OS/editor files
+.DS_Store
+.idea/
+.vscode/
+/2nd_sel.json
