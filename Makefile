@@ -22,19 +22,23 @@ PRETRAIN_CKPT ?= outputs/masked_trace_pretraining/best.pt
 SAMPLE ?= $(shell uv run python -c 'import pandas as pd; print(pd.read_csv("data/metadata.csv").iloc[0]["path"])')
 
 .PHONY: help sync test lint check \
-	metadata split validate-metadata validate-files inspect-sample visualize-sample \
+	metadata split validate-metadata validate-files inspect-sample visualize-sample sample-path \
 	train-cnn train-transformer train-transformer-finetuned train-multitask pretrain-transformer \
+	train-lightning train-lightning-local \
 	evaluate-cnn evaluate-transformer evaluate-transformer-finetuned evaluate-multitask compare \
-	predict predict-multitask api api-multitask docker-build docker-run docker-run-multitask \
-	mlflow-ui benchmark-cnn export-torchscript-cnn export-torchscript-multitask sample-path clean-cache \
-	export-multitask-predictions \
-	train-lightning \
+	predict predict-multitask \
+	api api-multitask \
+	docker-build docker-run docker-run-multitask \
+	mlflow-ui benchmark-cnn \
 	results \
+	export-torchscript-cnn export-torchscript-multitask \
+	export-multitask-predictions \
 	dvc-pull-data dvc-pull-models dvc-push-data dvc-push-models \
 	export-onnx-cnn export-onnx-multitask \
 	export-tensorrt-cnn export-tensorrt-multitask export-tensorrt-cnn-dry-run \
 	save-mlflow-model serve-mlflow-model \
-	cli-help cli-train cli-validate-data cli-predict cli-export-onnx cli-export-tensorrt-dry-run cli-save-mlflow-model
+	cli-help cli-train cli-validate-data cli-predict cli-export-onnx cli-export-tensorrt-dry-run cli-save-mlflow-model \
+	clean-cache
 
 help:
 	@echo "SeismoNN Makefile commands"
@@ -55,6 +59,8 @@ help:
 	@echo "  make sample-path                  Print default sample path from metadata.csv"
 	@echo ""
 	@echo "Training:"
+	@echo "  make train-lightning              Train CNN baseline with Hydra + PyTorch Lightning"
+	@echo "  make train-lightning-local        Train Lightning baseline without MLflow server"
 	@echo "  make train-cnn                    Train CNN classification baseline"
 	@echo "  make train-transformer            Train supervised Trace Transformer"
 	@echo "  make pretrain-transformer         Run self-supervised masked trace pretraining"
@@ -67,6 +73,8 @@ help:
 	@echo "  make evaluate-transformer-finetuned Evaluate fine-tuned Transformer checkpoint"
 	@echo "  make evaluate-multitask           Evaluate multi-task checkpoint"
 	@echo "  make compare                      Compare available evaluation reports"
+	@echo "  make export-multitask-predictions Export per-sample multi-task predictions"
+	@echo "  make results                      Generate RESULTS.md from output artifacts"
 	@echo ""
 	@echo "Inference:"
 	@echo "  make predict                      Classification CLI prediction"
@@ -78,36 +86,37 @@ help:
 	@echo "  make docker-build                 Build Docker image"
 	@echo "  make docker-run                   Run Docker API with classification checkpoint"
 	@echo "  make docker-run-multitask         Run Docker API with multi-task checkpoint"
-	@echo "  make export-torchscript-cnn       Export CNN checkpoint to TorchScript"
-	@echo "  make export-torchscript-multitask Export multi-task checkpoint to TorchScript"
-	@echo ""
-	@echo "Tracking and benchmarks:"
-	@echo "  make mlflow-ui                    Run MLflow UI"
-	@echo "  make benchmark-cnn                Benchmark CNN inference"
-	@echo ""
-	@echo "Cleanup:"
-	@echo "  make clean-cache                  Remove local Python/test caches"
-	@echo "  make export-multitask-predictions Export per-sample multi-task predictions"
-	@echo "  make results                      Generate RESULTS.md from output artifacts"
-	@echo "  make train-lightning              Train CNN baseline with Hydra + PyTorch Lightning"
-	@echo "  make dvc-pull-data                Pull dataset artifacts with DVC"
-	@echo "  make dvc-pull-models              Pull model artifacts with DVC"
-	@echo "  make dvc-push-data                Push dataset artifacts with DVC"
-	@echo "  make dvc-push-models              Push model artifacts with DVC"
 	@echo "  make export-onnx-cnn              Export CNN checkpoint to ONNX"
 	@echo "  make export-onnx-multitask        Export multi-task checkpoint to ONNX"
+	@echo "  make export-torchscript-cnn       Export CNN checkpoint to TorchScript"
+	@echo "  make export-torchscript-multitask Export multi-task checkpoint to TorchScript"
 	@echo "  make export-tensorrt-cnn          Export CNN ONNX model to TensorRT engine"
 	@echo "  make export-tensorrt-multitask    Export multi-task ONNX model to TensorRT engine"
 	@echo "  make export-tensorrt-cnn-dry-run  Print/check TensorRT export command without TensorRT"
 	@echo "  make save-mlflow-model            Package multi-task checkpoint as MLflow PyFunc model"
 	@echo "  make serve-mlflow-model           Serve packaged MLflow model locally"
-	@echo "  make cli-help                     Show official Fire CLI help"
-	@echo "  make cli-train                    Run official Hydra+Lightning training via seismonn CLI"
+	@echo ""
+	@echo "DVC:"
+	@echo "  make dvc-pull-data                Pull dataset artifacts with DVC"
+	@echo "  make dvc-pull-models              Pull model artifacts with DVC"
+	@echo "  make dvc-push-data                Push dataset artifacts with DVC"
+	@echo "  make dvc-push-models              Push model artifacts with DVC"
+	@echo ""
+	@echo "Tracking and benchmarks:"
+	@echo "  make mlflow-ui                    Run MLflow UI"
+	@echo "  make benchmark-cnn                Benchmark CNN inference"
+	@echo ""
+	@echo "Fire CLI:"
+	@echo "  make cli-help                     Show Fire CLI help"
+	@echo "  make cli-train                    Run Hydra+Lightning training via seismonn CLI"
 	@echo "  make cli-validate-data            Validate data via seismonn CLI"
 	@echo "  make cli-predict                  Predict via seismonn CLI"
 	@echo "  make cli-export-onnx              Export ONNX via seismonn CLI"
 	@echo "  make cli-export-tensorrt-dry-run  Dry-run TensorRT export via seismonn CLI"
 	@echo "  make cli-save-mlflow-model        Save MLflow model via seismonn CLI"
+	@echo ""
+	@echo "Cleanup:"
+	@echo "  make clean-cache                  Remove local Python/test caches"
 
 sync:
 	$(UV) sync --all-extras --dev
@@ -122,56 +131,63 @@ check: lint test
 
 metadata:
 	$(PYTHON) scripts/build_metadata.py \
-		--split-json 2nd_sel.json \
-		--data-dir 2nd_selection \
+		--split_json 2nd_sel.json \
+		--data_dir 2nd_selection \
 		--output data/metadata.csv \
-		--test-split-name val \
-		--validate-files
+		--test_split_name val \
+		--validate_files=True
 
 split:
 	$(PYTHON) scripts/create_split.py \
 		--input data/metadata.csv \
 		--output data/metadata_stratified.csv \
-		--val-size 0.2 \
-		--test-size 0.0 \
+		--val_size 0.2 \
+		--test_size 0.0 \
 		--seed 42 \
-		--stratify-column class_id
+		--stratify_column class_id
 
 validate-metadata:
 	$(PYTHON) scripts/validate_metadata.py \
 		--metadata data/metadata.csv \
-		--data-root . \
-		--expected-shape 2 1723 501 \
-		--expected-dtype float32 \
-		--expected-splits train val
+		--data_root . \
+		--expected_shape 2,1723,501 \
+		--expected_dtype float32 \
+		--expected_splits train,val \
+		--validate_files=False
 
 validate-files:
 	$(PYTHON) scripts/validate_metadata.py \
 		--metadata data/metadata.csv \
-		--data-root . \
-		--expected-shape 2 1723 501 \
-		--expected-dtype float32 \
-		--expected-splits train val \
-		--validate-files \
+		--data_root . \
+		--expected_shape 2,1723,501 \
+		--expected_dtype float32 \
+		--expected_splits train,val \
+		--validate_files=True \
 		--output outputs/metadata_validation.json
 
 inspect-sample:
 	$(PYTHON) scripts/inspect_sample.py \
 		--metadata data/metadata.csv \
-		--data-root . \
+		--data_root . \
 		--index 0
 
 visualize-sample:
 	$(PYTHON) scripts/visualize_sample.py \
 		--metadata data/metadata.csv \
-		--data-root . \
+		--data_root . \
 		--index 0 \
-		--output-dir outputs/sample_visualization_small \
-		--max-time-steps 400 \
-		--max-receivers 200
+		--output_dir outputs/sample_visualization_small \
+		--max_time_steps 400 \
+		--max_receivers 200
 
 sample-path:
 	@echo "$(SAMPLE)"
+
+train-lightning:
+	$(PYTHON) scripts/train_lightning.py
+
+train-lightning-local:
+	$(PYTHON) scripts/train_lightning.py tracking.enabled=false
 
 train-cnn:
 	$(PYTHON) scripts/train.py --config $(CNN_CONFIG)
@@ -193,7 +209,8 @@ evaluate-cnn:
 		--checkpoint $(CNN_CKPT) \
 		--metadata data/metadata.csv \
 		--split val \
-		--batch-size 16 \
+		--batch_size 16 \
+		--num_workers 0 \
 		--device $(DEVICE) \
 		--output outputs/cnn_baseline/evaluation_val.json
 
@@ -202,7 +219,8 @@ evaluate-transformer:
 		--checkpoint $(TRANSFORMER_CKPT) \
 		--metadata data/metadata.csv \
 		--split val \
-		--batch-size 4 \
+		--batch_size 4 \
+		--num_workers 0 \
 		--device $(DEVICE) \
 		--output outputs/trace_transformer/evaluation_val.json
 
@@ -211,7 +229,8 @@ evaluate-transformer-finetuned:
 		--checkpoint $(TRANSFORMER_FINETUNED_CKPT) \
 		--metadata data/metadata.csv \
 		--split val \
-		--batch-size 2 \
+		--batch_size 2 \
+		--num_workers 0 \
 		--device $(DEVICE) \
 		--output outputs/trace_transformer_finetuned/evaluation_val.json
 
@@ -220,8 +239,10 @@ evaluate-multitask:
 		--checkpoint $(MULTITASK_CKPT) \
 		--metadata data/metadata.csv \
 		--split val \
-		--batch-size 8 \
+		--batch_size 8 \
+		--num_workers 0 \
 		--device $(DEVICE) \
+		--regression_loss_weight 1.0 \
 		--output outputs/cnn_multitask_50ep/evaluation_val.json
 
 compare:
@@ -238,21 +259,21 @@ compare:
 		exit 1; \
 	fi; \
 	$(PYTHON) scripts/compare_evaluations.py \
-		--reports "$${reports[@]}" \
-		--output-csv outputs/model_comparison.csv \
-		--output-md outputs/model_comparison.md
+		"$${reports[@]}" \
+		--output_csv outputs/model_comparison.csv \
+		--output_md outputs/model_comparison.md
 
 predict:
 	$(PYTHON) scripts/predict.py \
 		--checkpoint $(CNN_CKPT) \
-		--input "$(SAMPLE)" \
+		--input_path "$(SAMPLE)" \
 		--device $(DEVICE) \
 		--output outputs/sample_prediction.json
 
 predict-multitask:
 	$(PYTHON) scripts/predict_multitask.py \
 		--checkpoint $(MULTITASK_CKPT) \
-		--input "$(SAMPLE)" \
+		--input_path "$(SAMPLE)" \
 		--device $(DEVICE) \
 		--output outputs/cnn_multitask_50ep/sample_multitask_prediction.json
 
@@ -295,10 +316,10 @@ mlflow-ui:
 benchmark-cnn:
 	$(PYTHON) scripts/benchmark_inference.py \
 		--checkpoint $(CNN_CKPT) \
-		--input "$(SAMPLE)" \
+		--input_path "$(SAMPLE)" \
 		--device $(DEVICE) \
-		--warmup-runs 3 \
-		--timed-runs 20 \
+		--warmup_runs 3 \
+		--timed_runs 20 \
 		--output outputs/inference_benchmark.json
 
 results:
@@ -321,21 +342,12 @@ export-multitask-predictions:
 		--checkpoint $(MULTITASK_CKPT) \
 		--metadata data/metadata.csv \
 		--split val \
-		--batch-size 8 \
+		--batch_size 8 \
+		--num_workers 0 \
 		--device $(DEVICE) \
-		--output-csv outputs/cnn_multitask_50ep/predictions_val.csv \
-		--summary-output outputs/cnn_multitask_50ep/predictions_summary_val.json \
-		--plots-dir outputs/cnn_multitask_50ep/parity_plots
-
-clean-cache:
-	rm -rf .pytest_cache .ruff_cache .mypy_cache
-	find . -type d -name "__pycache__" -prune -exec rm -rf {} +
-
-train-lightning:
-	$(PYTHON) scripts/train_lightning.py
-
-train-lightning-local:
-	$(PYTHON) scripts/train_lightning.py tracking.enabled=false
+		--output_csv outputs/cnn_multitask_50ep/predictions_val.csv \
+		--summary_output outputs/cnn_multitask_50ep/predictions_summary_val.json \
+		--plots_dir outputs/cnn_multitask_50ep/parity_plots
 
 dvc-pull-data:
 	$(UV) run dvc pull -r data_storage
@@ -349,7 +361,7 @@ dvc-push-data:
 dvc-push-models:
 	$(UV) run dvc push -r model_storage
 
-	export-onnx-cnn:
+export-onnx-cnn:
 	$(PYTHON) scripts/export_onnx.py \
 		--checkpoint $(CNN_CKPT) \
 		--output outputs/cnn_baseline/model.onnx \
@@ -378,7 +390,7 @@ export-tensorrt-cnn-dry-run:
 		--onnx outputs/cnn_baseline/model.onnx \
 		--engine outputs/cnn_baseline/model.engine \
 		--input_shape 2,1723,501 \
-		--dry_run
+		--dry_run=True
 
 save-mlflow-model:
 	$(PYTHON) scripts/save_mlflow_model.py \
@@ -395,10 +407,10 @@ serve-mlflow-model:
 		--no-conda
 
 cli-help:
-	$(UV) run seismonn --help
+	$(UV) run seismonn -- --help
 
 cli-train:
-	$(UV) run seismonn train --overrides "trainer.max_epochs=1 tracking.enabled=false"
+	$(UV) run seismonn train --overrides "trainer.max_epochs=1 tracking.enabled=false data.ensure_data=false"
 
 cli-validate-data:
 	$(UV) run seismonn validate-data --validate_files=False
@@ -430,3 +442,7 @@ cli-save-mlflow-model:
 		--output outputs/mlflow_models/cnn_multitask \
 		--device cpu \
 		--predictor_type auto
+
+clean-cache:
+	rm -rf .pytest_cache .ruff_cache .mypy_cache
+	find . -type d -name "__pycache__" -prune -exec rm -rf {} +
