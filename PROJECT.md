@@ -111,11 +111,11 @@ dtype: float32
 ```bash
 uv run python scripts/validate_metadata.py \
   --metadata data/metadata.csv \
-  --data-root . \
-  --expected-shape 2 1723 501 \
-  --expected-dtype float32 \
-  --expected-splits train val \
-  --validate-files
+  --data_root . \
+  --expected_shape 2 1723 501 \
+  --expected_dtype float32 \
+  --expected_splits train val \
+  --validate_files
 ```
 
 ## 6. Формат выходных данных
@@ -225,7 +225,7 @@ angle_spread_deg     = 14.0
 ```bash
 uv run python scripts/inspect_sample.py \
   --metadata data/metadata.csv \
-  --data-root . \
+  --data_root . \
   --index 0
 ```
 
@@ -234,9 +234,9 @@ uv run python scripts/inspect_sample.py \
 ```bash
 uv run python scripts/visualize_sample.py \
   --metadata data/metadata.csv \
-  --data-root . \
+  --data_root . \
   --index 0 \
-  --output-dir outputs/sample_visualization
+  --output_dir outputs/sample_visualization
 ```
 
 ## 9. Почему данные синтетические
@@ -289,10 +289,10 @@ total: 665 объектов
 uv run python scripts/create_split.py \
   --input data/metadata.csv \
   --output data/metadata_stratified.csv \
-  --val-size 0.2 \
-  --test-size 0.0 \
+  --val_size 0.2 \
+  --test_size 0.0 \
   --seed 42 \
-  --stratify-column class_id
+  --stratify_column class_id
 ```
 
 В metadata сохраняются поля:
@@ -573,7 +573,7 @@ uv run python scripts/evaluate_checkpoint.py \
   --checkpoint outputs/cnn_baseline/best.pt \
   --metadata data/metadata.csv \
   --split val \
-  --batch-size 16 \
+  --batch_size 16 \
   --device cpu \
   --output outputs/cnn_baseline/evaluation_val.json
 ```
@@ -586,8 +586,8 @@ uv run python scripts/compare_evaluations.py \
     outputs/cnn_baseline/evaluation_val.json \
     outputs/trace_transformer/evaluation_val.json \
     outputs/trace_transformer_finetuned/evaluation_val.json \
-  --output-csv outputs/model_comparison.csv \
-  --output-md outputs/model_comparison.md
+  --output_csv outputs/model_comparison.csv \
+  --output_md outputs/model_comparison.md
 ```
 
 ## 17. Внедрение
@@ -610,7 +610,7 @@ CLI inference:
 ```bash
 uv run python scripts/predict.py \
   --checkpoint outputs/cnn_baseline/best.pt \
-  --input 2nd_selection/<sample_name>.npy
+  --input_path 2nd_selection/<sample_name>.npy
 ```
 
 FastAPI:
@@ -672,10 +672,10 @@ Transformer inference также возможен на CPU, но может бы
 ```bash
 uv run python scripts/benchmark_inference.py \
   --checkpoint outputs/cnn_baseline/best.pt \
-  --input 2nd_selection/<sample_name>.npy \
+  --input_path 2nd_selection/<sample_name>.npy \
   --device cpu \
-  --warmup-runs 3 \
-  --timed-runs 20 \
+  --warmup_runs 3 \
+  --timed_runs 20 \
   --output outputs/inference_benchmark.json
 ```
 

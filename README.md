@@ -390,7 +390,7 @@ uv run seismonn validate-data --validate_files=True
 ```bash
 uv run python scripts/inspect_sample.py \
   --metadata data/metadata.csv \
-  --data-root . \
+  --data_root . \
   --index 0
 ```
 
@@ -399,11 +399,11 @@ uv run python scripts/inspect_sample.py \
 ```bash
 uv run python scripts/visualize_sample.py \
   --metadata data/metadata.csv \
-  --data-root . \
+  --data_root . \
   --index 0 \
-  --output-dir outputs/sample_visualization_small \
-  --max-time-steps 400 \
-  --max-receivers 200
+  --output_dir outputs/sample_visualization_small \
+  --max_time_steps 400 \
+  --max_receivers 200
 ```
 
 Создаются:
@@ -612,7 +612,7 @@ uv run python scripts/evaluate_checkpoint.py \
   --checkpoint outputs/cnn_baseline/best.pt \
   --metadata data/metadata.csv \
   --split val \
-  --batch-size 16 \
+  --batch_size 16 \
   --device cpu \
   --output outputs/cnn_baseline/evaluation_val.json
 ```
@@ -624,7 +624,7 @@ uv run python scripts/evaluate_multitask_checkpoint.py \
   --checkpoint outputs/cnn_multitask_50ep/best.pt \
   --metadata data/metadata.csv \
   --split val \
-  --batch-size 8 \
+  --batch_size 8 \
   --device cpu \
   --output outputs/cnn_multitask_50ep/evaluation_val.json
 ```
@@ -637,8 +637,8 @@ uv run python scripts/compare_evaluations.py \
     outputs/cnn_baseline/evaluation_val.json \
     outputs/trace_transformer/evaluation_val.json \
     outputs/cnn_multitask_50ep/evaluation_val.json \
-  --output-csv outputs/model_comparison.csv \
-  --output-md outputs/model_comparison.md
+  --output_csv outputs/model_comparison.csv \
+  --output_md outputs/model_comparison.md
 ```
 
 ## Per-sample multi-task predictions
@@ -650,11 +650,11 @@ uv run python scripts/export_multitask_predictions.py \
   --checkpoint outputs/cnn_multitask_50ep/best.pt \
   --metadata data/metadata.csv \
   --split val \
-  --batch-size 8 \
+  --batch_size 8 \
   --device cpu \
-  --output-csv outputs/cnn_multitask_50ep/predictions_val.csv \
-  --summary-output outputs/cnn_multitask_50ep/predictions_summary_val.json \
-  --plots-dir outputs/cnn_multitask_50ep/parity_plots
+  --output_csv outputs/cnn_multitask_50ep/predictions_val.csv \
+  --summary_output outputs/cnn_multitask_50ep/predictions_summary_val.json \
+  --plots_dir outputs/cnn_multitask_50ep/parity_plots
 ```
 
 Скрипт сохраняет:
@@ -868,10 +868,10 @@ Benchmark inference:
 ```bash
 uv run python scripts/benchmark_inference.py \
   --checkpoint outputs/cnn_baseline/best.pt \
-  --input 2nd_selection/<sample_name>.npy \
+  --input_path 2nd_selection/<sample_name>.npy \
   --device cpu \
-  --warmup-runs 3 \
-  --timed-runs 20 \
+  --warmup_runs 3 \
+  --timed_runs 20 \
   --output outputs/inference_benchmark.json
 ```
 
