@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
 from typing import Any
 
+import fire
 import pandas as pd
 import torch
 import yaml
@@ -82,20 +82,11 @@ def create_pretraining_model(
     )
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Self-supervised pre-training for Trace Transformer."
-    )
-    parser.add_argument(
-        "--config",
-        type=Path,
-        default=Path("configs/pretrain/trace_transformer.yaml"),
-        help="Path to pretraining config.",
-    )
-    args = parser.parse_args()
-
+def run_pretraining(
+    config_path: str | Path = "configs/pretrain/trace_transformer.yaml",
+) -> None:
     project_root = Path(__file__).resolve().parents[1]
-    config = load_config(args.config)
+    config = load_config(config_path)
 
     set_seed(int(config["seed"]))
     device = get_device(str(config["device"]))
@@ -278,5 +269,9 @@ def main() -> None:
     print(f"Saved best checkpoint to: {output_dir / 'best.pt'}")
 
 
+def main(config: str = "configs/pretrain/trace_transformer.yaml") -> None:
+    run_pretraining(config_path=config)
+
+
 if __name__ == "__main__":
-    main()
+    fire.Fire(main)

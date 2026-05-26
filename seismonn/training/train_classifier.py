@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
 from typing import Any
 
@@ -13,14 +12,6 @@ from torch.utils.data import DataLoader
 
 from seismonn.data.dataset import SeismoDataset
 from seismonn.models.factory import create_model
-from seismonn.training.evaluate import evaluate_classifier
-from seismonn.training.utils import (
-    get_device,
-    resolve_path,
-    save_json,
-    set_seed,
-    to_jsonable,
-)
 from seismonn.tracking.mlflow import (
     is_mlflow_enabled,
     log_mlflow_artifacts,
@@ -28,10 +19,19 @@ from seismonn.tracking.mlflow import (
     log_mlflow_params,
     start_mlflow_run,
 )
+from seismonn.training.evaluate import evaluate_classifier
 from seismonn.training.transfer import maybe_load_pretrained_encoder
+from seismonn.training.utils import (
+    get_device,
+    resolve_path,
+    save_json,
+    set_seed,
+    to_jsonable,
+)
 
 
 def load_config(config_path: str | Path) -> dict[str, Any]:
+    """Load YAML training config."""
     config_path = Path(config_path)
 
     with config_path.open("r", encoding="utf-8") as file:
@@ -50,30 +50,31 @@ def train_one_epoch(
     optimizer: torch.optim.Optimizer,
     device: torch.device,
 ) -> dict[str, float]:
+    """Train classifier for one epoch."""
     model.train()
 
     total_loss = 0.0
     total_samples = 0
     correct = 0
 
-    for x, y in dataloader:
-        x = x.to(device)
-        y = y.to(device)
+    for features, targets in dataloader:
+        features = features.to(device)
+        targets = targets.to(device)
 
         optimizer.zero_grad(set_to_none=True)
 
-        logits = model(x)
-        loss = criterion(logits, y)
+        logits = model(features)
+        loss = criterion(logits, targets)
 
         loss.backward()
         optimizer.step()
 
-        batch_size = y.size(0)
+        batch_size = targets.size(0)
         total_loss += float(loss.item()) * batch_size
         total_samples += batch_size
 
         predictions = torch.argmax(logits, dim=1)
-        correct += int((predictions == y).sum().item())
+        correct += int((predictions == targets).sum().item())
 
     if total_samples == 0:
         raise ValueError("Cannot train on an empty dataloader.")
@@ -88,27 +89,42 @@ def build_optimizer(
     model: nn.Module,
     optimizer_config: dict[str, Any],
 ) -> torch.optim.Optimizer:
-    optimizer_name = optimizer_config.get("name", "adam").lower()
-    lr = float(optimizer_config.get("lr", 1e-3))
+    """Build optimizer from config."""
+    optimizer_name = str(optimizer_config.get("name", "adam")).lower()
+    learning_rate = float(optimizer_config.get("lr", 1e-3))
     weight_decay = float(optimizer_config.get("weight_decay", 0.0))
 
     if optimizer_name == "adam":
-        return torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
+        return torch.optim.Adam(
+            model.parameters(),
+            lr=learning_rate,
+            weight_decay=weight_decay,
+        )
 
     if optimizer_name == "adamw":
-        return torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
+        return torch.optim.AdamW(
+            model.parameters(),
+            lr=learning_rate,
+            weight_decay=weight_decay,
+        )
 
     raise ValueError(f"Unsupported optimizer: {optimizer_name}")
 
 
 def get_optimized_metric(
-    metric_name: str, train_metrics: dict[str, Any], val_metrics: dict[str, Any]
+    metric_name: str,
+    train_metrics: dict[str, Any],
+    val_metrics: dict[str, Any],
 ) -> float:
+    """Get metric value used for best checkpoint selection."""
     if metric_name == "val_accuracy":
         return float(val_metrics["accuracy"])
 
     if metric_name == "val_macro_f1":
         return float(val_metrics["macro_f1"])
+
+    if metric_name == "val_balanced_accuracy":
+        return float(val_metrics["balanced_accuracy"])
 
     if metric_name == "train_accuracy":
         return float(train_metrics["accuracy"])
@@ -117,6 +133,7 @@ def get_optimized_metric(
 
 
 def save_training_plots(history: list[dict[str, Any]], output_dir: Path) -> None:
+    """Save training curves."""
     history_df = pd.DataFrame(history)
 
     plt.figure()
@@ -149,7 +166,11 @@ def save_training_plots(history: list[dict[str, Any]], output_dir: Path) -> None
     plt.close()
 
 
-def save_confusion_matrix_plot(confusion_matrix, output_dir: Path) -> None:
+def save_confusion_matrix_plot(
+    confusion_matrix: Any,
+    output_dir: Path,
+) -> None:
+    """Save confusion matrix plot."""
     plt.figure()
     plt.imshow(confusion_matrix)
     plt.title("Validation confusion matrix")
@@ -161,18 +182,12 @@ def save_confusion_matrix_plot(confusion_matrix, output_dir: Path) -> None:
     plt.close()
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Train CNN baseline for SeismoNN.")
-    parser.add_argument(
-        "--config",
-        type=Path,
-        default=Path("configs/train/cnn.yaml"),
-        help="Path to train config.",
-    )
-    args = parser.parse_args()
-
+def run_classifier_training(
+    config_path: str | Path = "configs/train/cnn.yaml",
+) -> None:
+    """Run classifier training from YAML config."""
     project_root = Path(__file__).resolve().parents[2]
-    config = load_config(args.config)
+    config = load_config(resolve_path(project_root, config_path))
 
     set_seed(int(config["seed"]))
     device = get_device(str(config["device"]))
@@ -259,6 +274,7 @@ def main() -> None:
     with start_mlflow_run(project_root=project_root, tracking_config=tracking_config):
         if is_mlflow_enabled(tracking_config):
             log_mlflow_params(config)
+
         for epoch in range(1, num_epochs + 1):
             train_metrics = train_one_epoch(
                 model=model,
@@ -353,70 +369,78 @@ def main() -> None:
 
                 torch.save(checkpoint, output_dir / "best.pt")
 
-    final_val_metrics = evaluate_classifier(
-        model=model,
-        dataloader=val_loader,
-        criterion=criterion,
-        device=device,
-        labels=labels,
-    )
-
-    torch.save(
-        {
-            "model_name": model_config["name"],
-            "model_state_dict": model.state_dict(),
-            "model_config": model_config,
-            "data_config": data_config,
-            "pretrained": transfer_summary,
-            "epoch": num_epochs,
-            "input_shape": data_config["input_shape"],
-            "class_id_to_crack_count": config["checkpoint"]["class_id_to_crack_count"],
-        },
-        output_dir / "last.pt",
-    )
-
-    history_df = pd.DataFrame(history)
-    history_df.to_csv(output_dir / "history.csv", index=False)
-
-    save_training_plots(history, output_dir)
-    save_confusion_matrix_plot(final_val_metrics["confusion_matrix"], output_dir)
-
-    metrics = {
-        "best_epoch": best_epoch,
-        "best_metric": best_metric,
-        "metric_to_optimize": metric_to_optimize,
-        "final_val_loss": final_val_metrics["loss"],
-        "final_val_accuracy": final_val_metrics["accuracy"],
-        "final_val_balanced_accuracy": final_val_metrics["balanced_accuracy"],
-        "final_val_macro_precision": final_val_metrics["macro_precision"],
-        "final_val_macro_recall": final_val_metrics["macro_recall"],
-        "final_val_macro_f1": final_val_metrics["macro_f1"],
-        "final_val_confusion_matrix": final_val_metrics["confusion_matrix"],
-    }
-
-    save_json(to_jsonable(metrics), output_dir / "metrics.json")
-
-    if is_mlflow_enabled(tracking_config):
-        log_mlflow_metrics(
-            {
-                "best_metric": float(best_metric),
-                "final_val_loss": final_val_metrics["loss"],
-                "final_val_accuracy": final_val_metrics["accuracy"],
-                "final_val_balanced_accuracy": final_val_metrics["balanced_accuracy"],
-                "final_val_macro_precision": final_val_metrics["macro_precision"],
-                "final_val_macro_recall": final_val_metrics["macro_recall"],
-                "final_val_macro_f1": final_val_metrics["macro_f1"],
-            },
-            step=num_epochs,
+        final_val_metrics = evaluate_classifier(
+            model=model,
+            dataloader=val_loader,
+            criterion=criterion,
+            device=device,
+            labels=labels,
         )
 
-        if bool(tracking_config.get("log_artifacts", True)):
-            log_mlflow_artifacts(output_dir)
+        torch.save(
+            {
+                "model_name": model_config["name"],
+                "model_state_dict": model.state_dict(),
+                "model_config": model_config,
+                "data_config": data_config,
+                "pretrained": transfer_summary,
+                "epoch": num_epochs,
+                "input_shape": data_config["input_shape"],
+                "class_id_to_crack_count": config["checkpoint"][
+                    "class_id_to_crack_count"
+                ],
+            },
+            output_dir / "last.pt",
+        )
+
+        history_df = pd.DataFrame(history)
+        history_df.to_csv(output_dir / "history.csv", index=False)
+
+        save_training_plots(history, output_dir)
+        save_confusion_matrix_plot(final_val_metrics["confusion_matrix"], output_dir)
+
+        metrics = {
+            "best_epoch": best_epoch,
+            "best_metric": best_metric,
+            "metric_to_optimize": metric_to_optimize,
+            "final_val_loss": final_val_metrics["loss"],
+            "final_val_accuracy": final_val_metrics["accuracy"],
+            "final_val_balanced_accuracy": final_val_metrics["balanced_accuracy"],
+            "final_val_macro_precision": final_val_metrics["macro_precision"],
+            "final_val_macro_recall": final_val_metrics["macro_recall"],
+            "final_val_macro_f1": final_val_metrics["macro_f1"],
+            "final_val_confusion_matrix": final_val_metrics["confusion_matrix"],
+        }
+
+        save_json(to_jsonable(metrics), output_dir / "metrics.json")
+
+        if is_mlflow_enabled(tracking_config):
+            log_mlflow_metrics(
+                {
+                    "best_metric": float(best_metric),
+                    "final_val_loss": final_val_metrics["loss"],
+                    "final_val_accuracy": final_val_metrics["accuracy"],
+                    "final_val_balanced_accuracy": final_val_metrics[
+                        "balanced_accuracy"
+                    ],
+                    "final_val_macro_precision": final_val_metrics["macro_precision"],
+                    "final_val_macro_recall": final_val_metrics["macro_recall"],
+                    "final_val_macro_f1": final_val_metrics["macro_f1"],
+                },
+                step=num_epochs,
+            )
+
+            if bool(tracking_config.get("log_artifacts", True)):
+                log_mlflow_artifacts(output_dir)
 
     print("Training finished.")
     print(f"Best epoch: {best_epoch}")
     print(f"Best {metric_to_optimize}: {best_metric:.4f}")
     print(f"Saved best checkpoint to: {output_dir / 'best.pt'}")
+
+
+def main(config: str = "configs/train/cnn.yaml") -> None:
+    run_classifier_training(config_path=config)
 
 
 if __name__ == "__main__":

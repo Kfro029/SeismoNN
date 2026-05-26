@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
 from typing import Any
 
+import fire
 import matplotlib.pyplot as plt
 import pandas as pd
 import torch
@@ -124,20 +124,11 @@ def save_training_plots(history: list[dict[str, Any]], output_dir: Path) -> None
     plt.close()
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Train CNN multi-task baseline for SeismoNN."
-    )
-    parser.add_argument(
-        "--config",
-        type=Path,
-        default=Path("configs/train/cnn_multitask.yaml"),
-        help="Path to multi-task train config.",
-    )
-    args = parser.parse_args()
-
+def run_multitask_training(
+    config_path: str | Path = "configs/train/cnn_multitask.yaml",
+) -> None:
     project_root = Path(__file__).resolve().parents[1]
-    config = load_config(args.config)
+    config = load_config(config_path)
 
     set_seed(int(config["seed"]))
     device = get_device(str(config["device"]))
@@ -377,5 +368,9 @@ def main() -> None:
     print(f"Saved best checkpoint to: {output_dir / 'best.pt'}")
 
 
+def main(config: str = "configs/train/cnn_multitask.yaml") -> None:
+    run_multitask_training(config_path=config)
+
+
 if __name__ == "__main__":
-    main()
+    fire.Fire(main)
