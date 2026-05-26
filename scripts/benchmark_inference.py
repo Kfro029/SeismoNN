@@ -1,74 +1,46 @@
 from __future__ import annotations
 
-import argparse
 import json
-from pathlib import Path
+
+import fire
 
 from seismonn.inference.benchmark import benchmark_predictor
+from seismonn.training.utils import to_jsonable
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Benchmark SeismoNN inference latency and throughput."
-    )
+def save_json(data, output_path: str) -> None:
+    from pathlib import Path
 
-    parser.add_argument(
-        "--checkpoint",
-        type=Path,
-        required=True,
-        help="Path to trained model checkpoint.",
-    )
-    parser.add_argument(
-        "--input",
-        type=Path,
-        required=True,
-        help="Path to input .npy file.",
-    )
-    parser.add_argument(
-        "--device",
-        type=str,
-        default="auto",
-        help="Device: auto, cpu, cuda.",
-    )
-    parser.add_argument(
-        "--warmup-runs",
-        type=int,
-        default=3,
-        help="Number of warmup runs.",
-    )
-    parser.add_argument(
-        "--timed-runs",
-        type=int,
-        default=20,
-        help="Number of timed runs.",
-    )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=None,
-        help="Optional path to save benchmark result as JSON.",
-    )
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    args = parser.parse_args()
+    with output_path.open("w", encoding="utf-8") as file:
+        json.dump(to_jsonable(data), file, indent=2, ensure_ascii=False)
+        file.write("\n")
 
+
+def main(
+    checkpoint: str,
+    input_path: str,
+    device: str = "auto",
+    warmup_runs: int = 3,
+    timed_runs: int = 20,
+    output: str | None = None,
+) -> None:
+    """Benchmark SeismoNN inference latency and throughput."""
     result = benchmark_predictor(
-        checkpoint_path=args.checkpoint,
-        input_path=args.input,
-        device_name=args.device,
-        warmup_runs=args.warmup_runs,
-        timed_runs=args.timed_runs,
+        checkpoint_path=checkpoint,
+        input_path=input_path,
+        device_name=device,
+        warmup_runs=warmup_runs,
+        timed_runs=timed_runs,
     )
 
-    result_json = json.dumps(result, indent=2, ensure_ascii=False)
-    print(result_json)
+    print(json.dumps(to_jsonable(result), indent=2, ensure_ascii=False))
 
-    if args.output is not None:
-        args.output.parent.mkdir(parents=True, exist_ok=True)
-
-        with args.output.open("w", encoding="utf-8") as file:
-            file.write(result_json)
-            file.write("\n")
+    if output is not None:
+        save_json(result, output)
 
 
 if __name__ == "__main__":
-    main()
+    fire.Fire(main)

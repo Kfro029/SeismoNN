@@ -1,102 +1,48 @@
 from __future__ import annotations
 
-import argparse
 import json
-from pathlib import Path
+
+import fire
 
 from seismonn.evaluation.multitask_checkpoint import (
     evaluate_multitask_checkpoint,
     save_multitask_evaluation_report,
 )
+from seismonn.training.utils import to_jsonable
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Evaluate a trained SeismoNN multi-task checkpoint."
-    )
-
-    parser.add_argument(
-        "--checkpoint",
-        type=Path,
-        required=True,
-        help="Path to multi-task model checkpoint.",
-    )
-    parser.add_argument(
-        "--metadata",
-        type=Path,
-        default=Path("data/metadata.csv"),
-        help="Path to metadata.csv.",
-    )
-    parser.add_argument(
-        "--data-root",
-        type=Path,
-        default=Path("."),
-        help="Root directory for relative sample paths.",
-    )
-    parser.add_argument(
-        "--split",
-        type=str,
-        default="val",
-        help="Metadata split to evaluate.",
-    )
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        default=8,
-        help="Evaluation batch size.",
-    )
-    parser.add_argument(
-        "--num-workers",
-        type=int,
-        default=0,
-        help="Number of DataLoader workers.",
-    )
-    parser.add_argument(
-        "--device",
-        type=str,
-        default="auto",
-        help="Device: auto, cpu, cuda.",
-    )
-    parser.add_argument(
-        "--regression-loss-weight",
-        type=float,
-        default=1.0,
-        help="Regression loss weight used only for reporting total loss.",
-    )
-    parser.add_argument(
-        "--no-normalize",
-        action="store_true",
-        help="Disable sample normalization. By default checkpoint data_config is used.",
-    )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=None,
-        help="Optional path to save JSON evaluation report.",
-    )
-
-    args = parser.parse_args()
-
-    normalize = False if args.no_normalize else None
+def main(
+    checkpoint: str,
+    metadata: str = "data/metadata.csv",
+    data_root: str = ".",
+    split: str = "val",
+    batch_size: int = 8,
+    num_workers: int = 0,
+    device: str = "auto",
+    regression_loss_weight: float = 1.0,
+    no_normalize: bool = False,
+    output: str | None = None,
+) -> None:
+    """Evaluate a trained SeismoNN multi-task checkpoint."""
+    normalize = False if no_normalize else None
 
     report = evaluate_multitask_checkpoint(
-        checkpoint_path=args.checkpoint,
-        metadata_path=args.metadata,
-        split=args.split,
-        data_root=args.data_root,
-        batch_size=args.batch_size,
-        num_workers=args.num_workers,
+        checkpoint_path=checkpoint,
+        metadata_path=metadata,
+        split=split,
+        data_root=data_root,
+        batch_size=batch_size,
+        num_workers=num_workers,
         normalize=normalize,
-        device_name=args.device,
-        regression_loss_weight=args.regression_loss_weight,
+        device_name=device,
+        regression_loss_weight=regression_loss_weight,
     )
 
-    report_json = json.dumps(report, indent=2, ensure_ascii=False)
-    print(report_json)
+    print(json.dumps(to_jsonable(report), indent=2, ensure_ascii=False))
 
-    if args.output is not None:
-        save_multitask_evaluation_report(report, args.output)
+    if output is not None:
+        save_multitask_evaluation_report(report, output)
 
 
 if __name__ == "__main__":
-    main()
+    fire.Fire(main)

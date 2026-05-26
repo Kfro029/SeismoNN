@@ -1,67 +1,52 @@
 from __future__ import annotations
 
-import argparse
 import json
-from pathlib import Path
+from typing import Any
+
+import fire
 
 from seismonn.exporting.torchscript import export_torchscript_checkpoint
+from seismonn.training.utils import to_jsonable
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Export SeismoNN checkpoint to TorchScript."
-    )
+def parse_input_shape(input_shape: Any | None) -> tuple[int, int, int] | None:
+    """Parse input shape from Fire CLI value."""
+    if input_shape is None:
+        return None
 
-    parser.add_argument(
-        "--checkpoint",
-        type=Path,
-        required=True,
-        help="Path to PyTorch checkpoint.",
-    )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        required=True,
-        help="Path to save TorchScript model.",
-    )
-    parser.add_argument(
-        "--metadata-output",
-        type=Path,
-        default=None,
-        help="Optional path to save export metadata JSON.",
-    )
-    parser.add_argument(
-        "--device",
-        type=str,
-        default="cpu",
-        help="Device used for export: cpu, cuda, auto.",
-    )
-    parser.add_argument(
-        "--input-shape",
-        type=int,
-        nargs=3,
-        default=None,
-        metavar=("C", "T", "R"),
-        help="Optional input shape for tracing, for example: --input-shape 2 1723 501.",
-    )
+    if isinstance(input_shape, (list, tuple)):
+        if len(input_shape) != 3:
+            raise ValueError(f"Expected 3 input dimensions, got {input_shape!r}.")
+        return tuple(int(value) for value in input_shape)
 
-    args = parser.parse_args()
+    normalized = str(input_shape).strip().strip("()[]")
+    normalized = normalized.replace("x", ",").replace(" ", "")
+    parts = [part for part in normalized.split(",") if part]
 
-    input_shape = None
+    if len(parts) != 3:
+        raise ValueError(f"Expected 3 input dimensions, got {input_shape!r}.")
 
-    if args.input_shape is not None:
-        input_shape = tuple(args.input_shape)
+    return tuple(int(part) for part in parts)
 
+
+def main(
+    checkpoint: str,
+    output: str,
+    metadata_output: str | None = None,
+    device: str = "cpu",
+    input_shape: Any | None = None,
+) -> None:
+    """Export SeismoNN checkpoint to TorchScript."""
     metadata = export_torchscript_checkpoint(
-        checkpoint_path=args.checkpoint,
-        output_path=args.output,
-        metadata_output_path=args.metadata_output,
-        device_name=args.device,
-        input_shape=input_shape,
+        checkpoint_path=checkpoint,
+        output_path=output,
+        metadata_output_path=metadata_output,
+        device_name=device,
+        input_shape=parse_input_shape(input_shape),
     )
 
-    print(json.dumps(metadata, indent=2, ensure_ascii=False))
+    print(json.dumps(to_jsonable(metadata), indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":
-    main()
+    fire.Fire(main)

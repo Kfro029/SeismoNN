@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-import argparse
 import csv
 import json
 from pathlib import Path
 from typing import Any
+
+import fire
 
 
 PREFIXES = ("receivers_fractures_", "fractures_")
@@ -192,55 +193,22 @@ def build_metadata(
         print(f"  {split}, crack_count={crack_count}: {count}")
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Build metadata.csv for SeismoNN dataset."
-    )
-
-    parser.add_argument(
-        "--split-json",
-        type=Path,
-        default=Path("2nd_sel.json"),
-        help="Path to the existing train/test split JSON.",
-    )
-    parser.add_argument(
-        "--data-dir",
-        type=Path,
-        default=Path("2nd_selection"),
-        help="Relative path to the directory with .npy files.",
-    )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=Path("data/metadata.csv"),
-        help="Output metadata CSV path.",
-    )
-    parser.add_argument(
-        "--test-split-name",
-        type=str,
-        default="val",
-        choices=["val", "test"],
-        help=(
-            "How to name the old 'test' split from 2nd_sel.json. "
-            "Use 'val' if it is used during model selection."
-        ),
-    )
-    parser.add_argument(
-        "--validate-files",
-        action="store_true",
-        help="Check that every file exists and add shape/dtype columns.",
-    )
-
-    args = parser.parse_args()
-
+def main(
+    split_json: str = "2nd_sel.json",
+    data_dir: str = "2nd_selection",
+    output: str = "data/metadata.csv",
+    test_split_name: str = "val",
+    validate_files: bool = False,
+) -> None:
+    """Build metadata.csv from split JSON and .npy files."""
     build_metadata(
-        split_json_path=args.split_json,
-        data_dir=args.data_dir,
-        output_path=args.output,
-        test_split_name=args.test_split_name,
-        validate_files=args.validate_files,
+        split_json_path=Path(split_json),
+        data_dir=Path(data_dir),
+        output_path=Path(output),
+        test_split_name=test_split_name,
+        validate_files=validate_files,
     )
 
 
 if __name__ == "__main__":
-    main()
+    fire.Fire(main)

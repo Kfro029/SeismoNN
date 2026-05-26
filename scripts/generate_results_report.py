@@ -1,59 +1,46 @@
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
+
+import fire
 
 from seismonn.reporting.results import generate_results_markdown, save_results_markdown
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Generate RESULTS.md from SeismoNN output artifacts."
-    )
+def parse_paths(paths: str | tuple[str, ...] | None) -> list[Path] | None:
+    """Parse optional path list from Fire CLI value."""
+    if paths is None:
+        return None
 
-    parser.add_argument(
-        "--evaluation-reports",
-        type=Path,
-        nargs="*",
-        default=None,
-        help="Optional list of evaluation JSON reports.",
-    )
-    parser.add_argument(
-        "--multitask-summaries",
-        type=Path,
-        nargs="*",
-        default=None,
-        help="Optional list of multi-task prediction summary JSON files.",
-    )
-    parser.add_argument(
-        "--benchmarks",
-        type=Path,
-        nargs="*",
-        default=None,
-        help="Optional list of inference benchmark JSON files.",
-    )
-    parser.add_argument(
-        "--output",
-        type=Path,
-        default=Path("RESULTS.md"),
-        help="Path to save generated markdown report.",
-    )
+    if isinstance(paths, tuple):
+        return [Path(path) for path in paths]
 
-    args = parser.parse_args()
+    if "," in str(paths):
+        return [Path(path.strip()) for path in str(paths).split(",") if path.strip()]
 
+    return [Path(str(paths))]
+
+
+def main(
+    evaluation_reports: str | tuple[str, ...] | None = None,
+    multitask_summaries: str | tuple[str, ...] | None = None,
+    benchmarks: str | tuple[str, ...] | None = None,
+    output: str = "RESULTS.md",
+) -> None:
+    """Generate RESULTS.md from SeismoNN output artifacts."""
     markdown = generate_results_markdown(
-        evaluation_report_paths=args.evaluation_reports,
-        multitask_summary_paths=args.multitask_summaries,
-        benchmark_paths=args.benchmarks,
+        evaluation_report_paths=parse_paths(evaluation_reports),
+        multitask_summary_paths=parse_paths(multitask_summaries),
+        benchmark_paths=parse_paths(benchmarks),
     )
 
     save_results_markdown(
         markdown=markdown,
-        output_path=args.output,
+        output_path=output,
     )
 
-    print(f"Saved results report to: {args.output}")
+    print(f"Saved results report to: {output}")
 
 
 if __name__ == "__main__":
-    main()
+    fire.Fire(main)
