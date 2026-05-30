@@ -70,3 +70,6 @@ models/**/*.plan
 .idea/
 .vscode/
 /2nd_sel.json
+all_selection/
+data/metadata_full.csv
+*.npy

@@ -6,6 +6,17 @@ repos:
       - id: end-of-file-fixer
       - id: check-yaml
 
+  - repo: local
+    hooks:
+      - id: prettier
+        name: prettier
+        language: node
+        entry: prettier --write --ignore-unknown
+        additional_dependencies:
+          - prettier@3.8.3
+        files: \.(md|markdown|ya?ml|json)$
+        exclude: ^(uv\.lock|.*\.dvc)$
+
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.11.13
     hooks:

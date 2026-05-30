@@ -1,0 +1,33 @@
+{
+  "num_rows": 2555,
+  "metadata_path": "C:\\Users\\KF36F\\OneDrive\\Desktop\\MIPT\\SeismoNN\\data\\metadata_full.csv",
+  "data_dir": "C:\\Users\\KF36F\\OneDrive\\Desktop\\MIPT\\SeismoNN\\all_selection",
+  "class_id_to_crack_count": {
+    "0": 3,
+    "1": 4,
+    "2": 5
+  },
+  "crack_count_distribution": {
+    "3": 2118,
+    "4": 228,
+    "5": 209
+  },
+  "split_distribution": {
+    "train": 2043,
+    "val": 512
+  },
+  "split_by_crack_count": {
+    "train": {
+      "3": 1694,
+      "4": 182,
+      "5": 167
+    },
+    "val": {
+      "3": 424,
+      "4": 46,
+      "5": 42
+    }
+  },
+  "shapes": ["2x1723x501"],
+  "dtypes": ["float32"]
+}

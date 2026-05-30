@@ -39,35 +39,35 @@
 
 ## 2. Таблица соответствия требованиям
 
-| Требование | Реализация в проекте | Команда / файл |
-|---|---|---|
-| Открытый репозиторий | Код находится в GitHub-репозитории, основная ветка `master` | `git log --oneline -5` |
-| Python package | Основной пакет проекта — `seismonn` | `uv run python -c "import seismonn"` |
-| Зависимости через uv | Зависимости описаны в `pyproject.toml`, lock-файл — `uv.lock` | `uv sync --all-extras --dev` |
-| Code quality tools | Используется `pre-commit`, `ruff`, `ruff-format`, базовые хуки | `.pre-commit-config.yaml`, `uv run pre-commit run -a` |
-| Training framework | Baseline training для проверки задания реализован через PyTorch Lightning | `seismonn/lightning/`, `scripts/train_lightning.py` |
-| Hydra configs | Основной Lightning pipeline использует Hydra-конфиги с `defaults` | `configs/hydra/config.yaml` |
-| DVC data management | Данные и модельные артефакты отслеживаются DVC | `.dvc/config`, `data/metadata.csv.dvc`, `models/**/*.dvc` |
-| DVC remotes | Разные remotes для данных и моделей | `data_storage`, `model_storage` в `.dvc/config` |
-| download_data | Реализована проверка/загрузка данных через DVC и fallback на Hugging Face | `seismonn/data/download.py` |
-| Train проверяет данные | Lightning/Hydra train вызывает `ensure_data_available()` | `seismonn/lightning/train.py` |
-| Logging | Используется MLflow tracking | `seismonn/tracking/mlflow.py`, `configs/hydra/tracking/mlflow.yaml` |
-| MLflow tracking URI | В Hydra-конфиге указан `http://127.0.0.1:8080` | `configs/hydra/tracking/mlflow.yaml` |
-| Графики обучения | Графики сохраняются в `plots/` | `plots/lightning/cnn_baseline/` |
-| Git commit id | Git commit id логируется в Lightning/MLflow pipeline | `seismonn/lightning/train.py` |
-| CLI без argparse | Основная CLI-точка входа реализована через Fire | `seismonn/commands.py`, `uv run seismonn --help` |
-| Train-команда для проверки | Запуск через Fire CLI + Hydra + Lightning | `uv run seismonn train --overrides "trainer.max_epochs=1"` |
-| Infer CLI | Предсказание через основную Fire CLI-точку | `uv run seismonn predict --checkpoint ... --input_path ...` |
-| ONNX export | Реализован экспорт checkpoint в ONNX + ONNX Runtime smoke test | `seismonn/exporting/onnx.py`, `scripts/export_onnx.py` |
-| TensorRT export | Реализован wrapper над `trtexec`; есть dry-run | `seismonn/exporting/tensorrt.py`, `scripts/export_tensorrt.py` |
-| Inference server | Реализован MLflow PyFunc + MLflow Serving | `seismonn/serving/mlflow_model.py`, `scripts/save_mlflow_model.py` |
-| FastAPI service | Дополнительный HTTP inference service | `seismonn/api/main.py` |
-| Docker | Есть Dockerfile для API | `Dockerfile`, `docker build -t seismonn-api .` |
-| Tests | Unit/integration tests через pytest | `uv run pytest` |
-| CI | GitHub Actions: pre-commit, pytest, Docker build | `.github/workflows/ci.yaml` |
-| Dataset docs | Отдельное описание датасета | `DATASET.md` |
-| Project spec | Обновлённая спецификация проекта | `PROJECT.md` |
-| Results report | Сводка результатов экспериментов | `RESULTS.md` |
+| Требование                 | Реализация в проекте                                                      | Команда / файл                                                      |
+| -------------------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Открытый репозиторий       | Код находится в GitHub-репозитории, основная ветка `master`               | `git log --oneline -5`                                              |
+| Python package             | Основной пакет проекта — `seismonn`                                       | `uv run python -c "import seismonn"`                                |
+| Зависимости через uv       | Зависимости описаны в `pyproject.toml`, lock-файл — `uv.lock`             | `uv sync --all-extras --dev`                                        |
+| Code quality tools         | Используется `pre-commit`, `ruff`, `ruff-format`, базовые хуки            | `.pre-commit-config.yaml`, `uv run pre-commit run -a`               |
+| Training framework         | Baseline training для проверки задания реализован через PyTorch Lightning | `seismonn/lightning/`, `scripts/train_lightning.py`                 |
+| Hydra configs              | Основной Lightning pipeline использует Hydra-конфиги с `defaults`         | `configs/hydra/config.yaml`                                         |
+| DVC data management        | Данные и модельные артефакты отслеживаются DVC                            | `.dvc/config`, `data/metadata.csv.dvc`, `models/**/*.dvc`           |
+| DVC remotes                | Разные remotes для данных и моделей                                       | `data_storage`, `model_storage` в `.dvc/config`                     |
+| download_data              | Реализована проверка/загрузка данных через DVC и fallback на Hugging Face | `seismonn/data/download.py`                                         |
+| Train проверяет данные     | Lightning/Hydra train вызывает `ensure_data_available()`                  | `seismonn/lightning/train.py`                                       |
+| Logging                    | Используется MLflow tracking                                              | `seismonn/tracking/mlflow.py`, `configs/hydra/tracking/mlflow.yaml` |
+| MLflow tracking URI        | В Hydra-конфиге указан `http://127.0.0.1:8080`                            | `configs/hydra/tracking/mlflow.yaml`                                |
+| Графики обучения           | Графики сохраняются в `plots/`                                            | `plots/lightning/cnn_baseline/`                                     |
+| Git commit id              | Git commit id логируется в Lightning/MLflow pipeline                      | `seismonn/lightning/train.py`                                       |
+| CLI без argparse           | Основная CLI-точка входа реализована через Fire                           | `seismonn/commands.py`, `uv run seismonn --help`                    |
+| Train-команда для проверки | Запуск через Fire CLI + Hydra + Lightning                                 | `uv run seismonn train --overrides "trainer.max_epochs=1"`          |
+| Infer CLI                  | Предсказание через основную Fire CLI-точку                                | `uv run seismonn predict --checkpoint ... --input_path ...`         |
+| ONNX export                | Реализован экспорт checkpoint в ONNX + ONNX Runtime smoke test            | `seismonn/exporting/onnx.py`, `scripts/export_onnx.py`              |
+| TensorRT export            | Реализован wrapper над `trtexec`; есть dry-run                            | `seismonn/exporting/tensorrt.py`, `scripts/export_tensorrt.py`      |
+| Inference server           | Реализован MLflow PyFunc + MLflow Serving                                 | `seismonn/serving/mlflow_model.py`, `scripts/save_mlflow_model.py`  |
+| FastAPI service            | Дополнительный HTTP inference service                                     | `seismonn/api/main.py`                                              |
+| Docker                     | Есть Dockerfile для API                                                   | `Dockerfile`, `docker build -t seismonn-api .`                      |
+| Tests                      | Unit/integration tests через pytest                                       | `uv run pytest`                                                     |
+| CI                         | GitHub Actions: pre-commit, pytest, Docker build                          | `.github/workflows/ci.yaml`                                         |
+| Dataset docs               | Отдельное описание датасета                                               | `DATASET.md`                                                        |
+| Project spec               | Обновлённая спецификация проекта                                          | `PROJECT.md`                                                        |
+| Results report             | Сводка результатов экспериментов                                          | `RESULTS.md`                                                        |
 
 ## 3. Setup
 

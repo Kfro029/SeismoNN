@@ -593,6 +593,7 @@ uv run python scripts/compare_evaluations.py \
 ## 17. Внедрение
 
 Форматы модели:
+
 - PyTorch checkpoint: best.pt / last.pt;
 - TorchScript export: model_torchscript.pt.
 

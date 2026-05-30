@@ -28,7 +28,6 @@ regression:
 Дополнительные документы:
 
 ```text
-COURSE_CHECKLIST.md — соответствие требованиям курса и команды для проверки
 PROJECT.md          — обновлённое описание проекта и постановки задачи
 DATASET.md          — подробное описание датасета, ограничений и рисков
 RESULTS.md          — сводка результатов экспериментов
@@ -1026,7 +1025,7 @@ download_data / ensure_data_available
 Hydra hierarchical configs
 PyTorch Lightning baseline training
 Fire CLI entrypoint
-Pre-commit + Ruff
+Pre-commit + Ruff + Prettier
 Pytest test suite
 GitHub Actions CI
 MLflow tracking
