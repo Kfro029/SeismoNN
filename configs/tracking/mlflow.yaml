@@ -1,0 +1,6 @@
+enabled: true
+tracking_uri: mlruns
+experiment_name: seismonn
+run_name: cnn_baseline
+log_model: false
+log_artifacts: true

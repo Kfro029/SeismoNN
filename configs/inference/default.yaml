@@ -1,0 +1,7 @@
+﻿checkpoint: outputs/cnn_multitask_50ep/best.pt
+input_path: null
+output: outputs/seismonn_cli_prediction.json
+device: cpu
+predictor_type: auto
+
+ensure_data: false

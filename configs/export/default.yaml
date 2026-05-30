@@ -1,0 +1,25 @@
+﻿onnx:
+  checkpoint: outputs/cnn_baseline/best.pt
+  output: outputs/cnn_baseline/model.onnx
+  metadata_output: null
+  device: cpu
+  input_shape: ${data.input_shape}
+  opset_version: 17
+  dynamic_batch: true
+  validate: true
+  smoke_test: true
+
+tensorrt:
+  onnx: outputs/cnn_baseline/model.onnx
+  engine: outputs/cnn_baseline/model.engine
+  metadata_output: null
+  input_name: features
+  input_shape: ${data.input_shape}
+  min_batch_size: 1
+  opt_batch_size: 1
+  max_batch_size: 1
+  fp16: false
+  int8: false
+  verbose: false
+  trtexec_path: trtexec
+  dry_run: false

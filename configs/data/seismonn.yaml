@@ -1,13 +1,14 @@
 metadata_path: data/metadata.csv
 data_root: .
+data_dir: 2nd_selection
+repo_root: .
+
 train_split: train
 val_split: val
-
 batch_size: 16
 num_workers: 2
 normalize: true
 pin_memory: true
-
 input_shape: [2, 1723, 501]
 
 ensure_data: true
@@ -15,3 +16,8 @@ use_dvc: true
 dvc_remote: data_storage
 huggingface_repo_id: FAKIrik/Seismo_datasets
 allow_huggingface_fallback: true
+
+class_id_to_crack_count:
+  0: 3
+  1: 4
+  2: 5

@@ -1,14 +1,13 @@
-from __future__ import annotations
-
 import json
-import shlex
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
 import fire
+from omegaconf import DictConfig
 
+from seismonn.config import load_hydra_config, parse_overrides
 from seismonn.data.download import ensure_data_available
 from seismonn.data.validation import validate_metadata
 from seismonn.exporting.onnx import export_onnx_checkpoint
@@ -39,31 +38,24 @@ def run_command(command: list[str]) -> None:
 
 
 def parse_input_shape(input_shape: Any | None) -> tuple[int, int, int] | None:
-    """Parse input shape from CLI value.
-
-    Supports:
-    - "2,1723,501"
-    - "2x1723x501"
-    - "(2, 1723, 501)"
-    - [2, 1723, 501]
-    - (2, 1723, 501)
-    """
+    """Parse input shape from Hydra/CLI value."""
     if input_shape is None:
         return None
 
-    if isinstance(input_shape, (list, tuple)):
-        if len(input_shape) != 3:
-            raise ValueError(
-                f"Expected input_shape with 3 dimensions, got {input_shape!r}."
-            )
-        return tuple(int(part) for part in input_shape)
+    if not isinstance(input_shape, str):
+        try:
+            parts = tuple(int(part) for part in input_shape)
+        except TypeError:
+            parts = ()
+        if parts:
+            if len(parts) != 3:
+                raise ValueError(
+                    f"Expected input_shape with 3 dimensions, got {input_shape!r}."
+                )
+            return parts
 
-    normalized = str(input_shape)
-    normalized = normalized.strip()
-    normalized = normalized.strip("()[]")
-    normalized = normalized.replace("x", ",")
-    normalized = normalized.replace(" ", "")
-
+    normalized = str(input_shape).strip().strip("()[]")
+    normalized = normalized.replace("x", ",").replace(" ", "")
     parts = [part for part in normalized.split(",") if part]
 
     if len(parts) != 3:
@@ -74,8 +66,29 @@ def parse_input_shape(input_shape: Any | None) -> tuple[int, int, int] | None:
     return tuple(int(part) for part in parts)
 
 
+def parse_splits(value: Any) -> tuple[str, ...]:
+    """Parse expected split names from Hydra/CLI value."""
+    if isinstance(value, str):
+        normalized = value.strip().strip("[]()")
+        normalized = normalized.replace("'", "").replace('"', "")
+        return tuple(split.strip() for split in normalized.split(",") if split.strip())
+
+    try:
+        return tuple(str(split) for split in value)
+    except TypeError as error:
+        raise TypeError(f"Unsupported split specification: {value!r}") from error
+
+
+def get_config(overrides: str = "", config_name: str = "config") -> DictConfig:
+    """Load Hydra config from project configs directory."""
+    return load_hydra_config(
+        overrides=parse_overrides(overrides),
+        config_name=config_name,
+    )
+
+
 def train(overrides: str = "") -> None:
-    """Run official Hydra + PyTorch Lightning training pipeline.
+    """Run Hydra + PyTorch Lightning training pipeline.
 
     Example:
         uv run seismonn train --overrides "trainer.max_epochs=1 tracking.enabled=false"
@@ -85,175 +98,183 @@ def train(overrides: str = "") -> None:
         "scripts/train_lightning.py",
     ]
 
-    if overrides:
-        command.extend(shlex.split(overrides))
+    command.extend(parse_overrides(overrides))
 
     run_command(command)
 
 
-def download_data(
-    metadata_path: str = "data/metadata.csv",
-    data_dir: str = "2nd_selection",
-    repo_root: str = ".",
-    use_dvc: bool = True,
-    dvc_remote: str = "data_storage",
-    huggingface_repo_id: str = "FAKIrik/Seismo_datasets",
-    allow_huggingface_fallback: bool = True,
-) -> None:
-    """Ensure data and metadata are available."""
+def download_data(overrides: str = "", config_name: str = "config") -> None:
+    """Ensure data and metadata are available using Hydra config."""
+    config = get_config(overrides=overrides, config_name=config_name)
+
     ensure_data_available(
-        metadata_path=metadata_path,
-        data_dir=data_dir,
-        repo_root=repo_root,
-        use_dvc=use_dvc,
-        dvc_remote=dvc_remote,
-        huggingface_repo_id=huggingface_repo_id,
-        allow_huggingface_fallback=allow_huggingface_fallback,
+        metadata_path=str(config.data.metadata_path),
+        data_dir=str(config.data.data_dir),
+        repo_root=str(config.data.repo_root),
+        use_dvc=bool(config.data.use_dvc),
+        dvc_remote=str(config.data.dvc_remote),
+        huggingface_repo_id=str(config.data.huggingface_repo_id),
+        allow_huggingface_fallback=bool(config.data.allow_huggingface_fallback),
     )
 
     print_json(
         {
             "status": "ok",
-            "metadata_path": metadata_path,
-            "data_dir": data_dir,
+            "metadata_path": str(config.data.metadata_path),
+            "data_dir": str(config.data.data_dir),
+            "repo_root": str(config.data.repo_root),
         }
     )
 
 
-def validate_data(
-    metadata: str = "data/metadata.csv",
-    data_root: str = ".",
-    expected_shape: str = "2,1723,501",
-    expected_dtype: str = "float32",
-    expected_splits: str = "train,val",
-    validate_files: bool = False,
-    output: str | None = None,
-) -> None:
+def validate_data(overrides: str = "", config_name: str = "config") -> None:
     """Validate metadata.csv and optionally referenced .npy files."""
-    expected_shape_tuple = parse_input_shape(expected_shape)
-    expected_split_tuple = tuple(
-        split.strip() for split in expected_splits.split(",") if split.strip()
-    )
+    config = get_config(overrides=overrides, config_name=config_name)
 
     report = validate_metadata(
-        metadata_path=metadata,
-        data_root=data_root,
-        expected_shape=expected_shape_tuple,
-        expected_dtype=expected_dtype,
-        expected_splits=expected_split_tuple,
-        validate_files=validate_files,
+        metadata_path=str(config.validation.metadata_path),
+        data_root=str(config.validation.data_root),
+        expected_shape=parse_input_shape(config.validation.expected_shape),
+        expected_dtype=str(config.validation.expected_dtype),
+        expected_splits=parse_splits(config.validation.expected_splits),
+        validate_files=bool(config.validation.validate_files),
     )
 
     print_json(report)
 
-    if output is not None:
-        save_json(report, output)
+    if config.validation.output is not None:
+        save_json(report, str(config.validation.output))
 
     if not report["is_valid"]:
         raise SystemExit(1)
 
 
-def predict(
-    checkpoint: str,
-    input_path: str,
-    output: str | None = None,
-    device: str = "auto",
-    predictor_type: str = "auto",
-) -> None:
-    """Run classification or multi-task prediction for one .npy sample."""
+def predict(overrides: str = "", config_name: str = "config") -> None:
+    """Run classification or multi-task prediction from Hydra config."""
+    config = get_config(overrides=overrides, config_name=config_name)
+
+    if config.inference.input_path is None:
+        raise ValueError(
+            "inference.input_path is required. "
+            'Example: --overrides "inference.input_path=2nd_selection/sample.npy"'
+        )
+
+    if bool(config.inference.get("ensure_data", False)):
+        ensure_data_available(
+            metadata_path=str(config.data.metadata_path),
+            data_dir=str(config.data.data_dir),
+            repo_root=str(config.data.repo_root),
+            use_dvc=bool(config.data.use_dvc),
+            dvc_remote=str(config.data.dvc_remote),
+            huggingface_repo_id=str(config.data.huggingface_repo_id),
+            allow_huggingface_fallback=bool(config.data.allow_huggingface_fallback),
+        )
+
     loaded_predictor = create_predictor(
-        checkpoint_path=checkpoint,
-        device_name=device,
-        predictor_type=predictor_type,
+        checkpoint_path=str(config.inference.checkpoint),
+        device_name=str(config.inference.device),
+        predictor_type=str(config.inference.predictor_type),
     )
 
-    prediction = loaded_predictor.predictor.predict_file(input_path)
+    prediction = loaded_predictor.predictor.predict_file(
+        str(config.inference.input_path)
+    )
 
     print_json(prediction)
 
-    if output is not None:
-        save_json(prediction, output)
+    if config.inference.output is not None:
+        save_json(prediction, str(config.inference.output))
 
 
-def export_onnx(
-    checkpoint: str,
-    output: str,
-    metadata_output: str | None = None,
-    device: str = "cpu",
-    input_shape: str | None = None,
-    opset_version: int = 17,
-    dynamic_batch: bool = True,
-    validate: bool = True,
-    smoke_test: bool = True,
-) -> None:
-    """Export checkpoint to ONNX."""
+def export_onnx(overrides: str = "", config_name: str = "config") -> None:
+    """Export checkpoint to ONNX using Hydra config."""
+    config = get_config(overrides=overrides, config_name=config_name)
+    onnx_config = config.export.onnx
+
     metadata = export_onnx_checkpoint(
-        checkpoint_path=checkpoint,
-        output_path=output,
-        metadata_output_path=metadata_output,
-        device_name=device,
-        input_shape=parse_input_shape(input_shape),
-        opset_version=opset_version,
-        dynamic_batch=dynamic_batch,
-        validate=validate,
-        smoke_test=smoke_test,
+        checkpoint_path=str(onnx_config.checkpoint),
+        output_path=str(onnx_config.output),
+        metadata_output_path=(
+            None
+            if onnx_config.metadata_output is None
+            else str(onnx_config.metadata_output)
+        ),
+        device_name=str(onnx_config.device),
+        input_shape=parse_input_shape(onnx_config.input_shape),
+        opset_version=int(onnx_config.opset_version),
+        dynamic_batch=bool(onnx_config.dynamic_batch),
+        validate=bool(onnx_config.validate),
+        smoke_test=bool(onnx_config.smoke_test),
     )
 
     print_json(metadata)
 
 
-def export_tensorrt(
-    onnx: str,
-    engine: str,
-    metadata_output: str | None = None,
-    input_name: str = "features",
-    input_shape: str | None = "2,1723,501",
-    min_batch_size: int = 1,
-    opt_batch_size: int = 1,
-    max_batch_size: int = 1,
-    fp16: bool = False,
-    int8: bool = False,
-    verbose: bool = False,
-    trtexec_path: str = "trtexec",
-    dry_run: bool = False,
-) -> None:
-    """Export ONNX model to TensorRT engine using trtexec."""
+def export_tensorrt(overrides: str = "", config_name: str = "config") -> None:
+    """Export ONNX model to TensorRT engine using Hydra config."""
+    config = get_config(overrides=overrides, config_name=config_name)
+    tensorrt_config = config.export.tensorrt
+
     metadata = export_tensorrt_engine(
-        onnx_path=onnx,
-        engine_path=engine,
-        metadata_output_path=metadata_output,
-        input_name=input_name,
-        input_shape=parse_input_shape(input_shape),
-        min_batch_size=min_batch_size,
-        opt_batch_size=opt_batch_size,
-        max_batch_size=max_batch_size,
-        fp16=fp16,
-        int8=int8,
-        verbose=verbose,
-        trtexec_path=trtexec_path,
-        dry_run=dry_run,
+        onnx_path=str(tensorrt_config.onnx),
+        engine_path=str(tensorrt_config.engine),
+        metadata_output_path=(
+            None
+            if tensorrt_config.metadata_output is None
+            else str(tensorrt_config.metadata_output)
+        ),
+        input_name=str(tensorrt_config.input_name),
+        input_shape=parse_input_shape(tensorrt_config.input_shape),
+        min_batch_size=int(tensorrt_config.min_batch_size),
+        opt_batch_size=int(tensorrt_config.opt_batch_size),
+        max_batch_size=int(tensorrt_config.max_batch_size),
+        fp16=bool(tensorrt_config.fp16),
+        int8=bool(tensorrt_config.int8),
+        verbose=bool(tensorrt_config.verbose),
+        trtexec_path=str(tensorrt_config.trtexec_path),
+        dry_run=bool(tensorrt_config.dry_run),
     )
 
     print_json(metadata)
 
 
-def save_mlflow_model(
-    checkpoint: str,
-    output: str,
-    device: str = "cpu",
-    predictor_type: str = "auto",
-    overwrite: bool = True,
-) -> None:
-    """Package checkpoint as MLflow PyFunc model."""
+def save_mlflow_model(overrides: str = "", config_name: str = "config") -> None:
+    """Package checkpoint as MLflow PyFunc model using Hydra config."""
+    config = get_config(overrides=overrides, config_name=config_name)
+    mlflow_model_config = config.serving.mlflow_model
+
     metadata = save_mlflow_pyfunc_model(
-        checkpoint_path=checkpoint,
-        output_path=output,
-        device_name=device,
-        predictor_type=predictor_type,
-        overwrite=overwrite,
+        checkpoint_path=str(mlflow_model_config.checkpoint),
+        output_path=str(mlflow_model_config.output),
+        device_name=str(mlflow_model_config.device),
+        predictor_type=str(mlflow_model_config.predictor_type),
+        overwrite=bool(mlflow_model_config.overwrite),
     )
 
     print_json(metadata)
+
+
+def serve_mlflow_model(overrides: str = "", config_name: str = "config") -> None:
+    """Serve packaged MLflow model using Hydra config."""
+    config = get_config(overrides=overrides, config_name=config_name)
+    server_config = config.serving.mlflow_server
+
+    command = [
+        "mlflow",
+        "models",
+        "serve",
+        "-m",
+        str(server_config.model_uri),
+        "--host",
+        str(server_config.host),
+        "--port",
+        str(server_config.port),
+    ]
+
+    if bool(server_config.no_conda):
+        command.append("--no-conda")
+
+    run_command([sys.executable, "-m", *command])
 
 
 def main() -> None:
@@ -266,6 +287,7 @@ def main() -> None:
             "export-onnx": export_onnx,
             "export-tensorrt": export_tensorrt,
             "save-mlflow-model": save_mlflow_model,
+            "serve-mlflow-model": serve_mlflow_model,
         }
     )
 

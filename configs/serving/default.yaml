@@ -1,0 +1,19 @@
+﻿mlflow_model:
+  checkpoint: outputs/cnn_multitask_50ep/best.pt
+  output: outputs/mlflow_models/cnn_multitask
+  device: cpu
+  predictor_type: auto
+  overwrite: true
+
+mlflow_server:
+  model_uri: outputs/mlflow_models/cnn_multitask
+  host: 127.0.0.1
+  port: 5001
+  no_conda: true
+
+api:
+  host: 127.0.0.1
+  port: 8000
+  checkpoint: outputs/cnn_multitask_50ep/best.pt
+  device: cpu
+  predictor_type: auto

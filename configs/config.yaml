@@ -4,6 +4,10 @@ defaults:
   - optimizer: adamw
   - trainer: default
   - tracking: mlflow
+  - validation: default
+  - inference: default
+  - export: default
+  - serving: default
   - _self_
 
 seed: 42

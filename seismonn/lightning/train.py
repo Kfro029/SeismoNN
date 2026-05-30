@@ -6,6 +6,7 @@ from typing import Any
 
 import lightning as L
 import pandas as pd
+import torch
 from hydra.utils import to_absolute_path
 from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
 from lightning.pytorch.loggers import CSVLogger, MLFlowLogger
@@ -97,19 +98,87 @@ def create_loggers(
 
 def create_callbacks(config: DictConfig, output_dir: Path) -> list[Any]:
     """Create Lightning callbacks."""
-    checkpoint_callback = ModelCheckpoint(
-        dirpath=str(output_dir / "checkpoints"),
-        filename="best-{epoch:03d}-{val_macro_f1:.4f}",
-        monitor=str(config.trainer.metric_to_monitor),
-        mode=str(config.trainer.monitor_mode),
-        save_top_k=1,
-        save_last=True,
+    callbacks: list[Any] = []
+
+    if bool(config.trainer.enable_checkpointing):
+        checkpoint_config = config.trainer.checkpoint
+
+        callbacks.append(
+            ModelCheckpoint(
+                dirpath=str(output_dir / str(checkpoint_config.dirname)),
+                filename=str(checkpoint_config.filename),
+                monitor=str(config.trainer.metric_to_monitor),
+                mode=str(config.trainer.monitor_mode),
+                save_top_k=int(checkpoint_config.save_top_k),
+                save_last=bool(checkpoint_config.save_last),
+            )
+        )
+
+    if bool(config.trainer.get("enable_learning_rate_monitor", True)):
+        callbacks.append(LearningRateMonitor(logging_interval="epoch"))
+
+    return callbacks
+
+
+def save_deployment_checkpoint(
+    config: DictConfig,
+    trainer: L.Trainer,
+    output_dir: Path,
+) -> None:
+    """Save SeismoNN-compatible checkpoint for inference/export."""
+    checkpoint_config = config.trainer.checkpoint
+
+    if not bool(checkpoint_config.get("save_deployment_checkpoint", True)):
+        return
+
+    best_model_path = None
+
+    for callback in trainer.callbacks:
+        if isinstance(callback, ModelCheckpoint):
+            best_model_path = callback.best_model_path
+            break
+
+    if not best_model_path:
+        raise RuntimeError("Best Lightning checkpoint path is empty.")
+
+    lightning_checkpoint = torch.load(
+        best_model_path,
+        map_location="cpu",
+        weights_only=False,
     )
 
-    return [
-        checkpoint_callback,
-        LearningRateMonitor(logging_interval="epoch"),
-    ]
+    lightning_state_dict = lightning_checkpoint["state_dict"]
+
+    model_state_dict = {
+        key.removeprefix("model."): value
+        for key, value in lightning_state_dict.items()
+        if key.startswith("model.")
+    }
+
+    if not model_state_dict:
+        raise RuntimeError(
+            "Could not extract model.* weights from Lightning checkpoint."
+        )
+
+    deployment_checkpoint = {
+        "model_name": str(config.model.name),
+        "model_state_dict": model_state_dict,
+        "model_config": OmegaConf.to_container(config.model, resolve=True),
+        "data_config": OmegaConf.to_container(config.data, resolve=True),
+        "epoch": int(lightning_checkpoint.get("epoch", trainer.current_epoch)),
+        "input_shape": list(config.data.input_shape),
+        "class_id_to_crack_count": OmegaConf.to_container(
+            config.data.class_id_to_crack_count,
+            resolve=True,
+        ),
+        "source_checkpoint_path": str(best_model_path),
+    }
+
+    output_path = output_dir / str(checkpoint_config.deployment_filename)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(deployment_checkpoint, output_path)
+
+    print(f"Saved deployment checkpoint: {output_path}")
 
 
 def plot_metric(
@@ -185,8 +254,8 @@ def run_lightning_training(config: DictConfig) -> None:
     if bool(config.data.get("ensure_data", False)):
         ensure_data_available(
             metadata_path=str(config.data.metadata_path),
-            data_dir="2nd_selection",
-            repo_root=Path(to_absolute_path(".")),
+            data_dir=str(config.data.get("data_dir", "2nd_selection")),
+            repo_root=Path(to_absolute_path(str(config.data.get("repo_root", ".")))),
             use_dvc=bool(config.data.get("use_dvc", True)),
             dvc_remote=str(config.data.get("dvc_remote", "data_storage")),
             huggingface_repo_id=str(
@@ -230,6 +299,11 @@ def run_lightning_training(config: DictConfig) -> None:
         precision=str(config.trainer.precision),
         log_every_n_steps=int(config.trainer.log_every_n_steps),
         enable_checkpointing=bool(config.trainer.enable_checkpointing),
+        deterministic=bool(config.trainer.get("deterministic", False)),
+        gradient_clip_val=float(config.trainer.get("gradient_clip_val", 0.0)),
+        accumulate_grad_batches=int(config.trainer.get("accumulate_grad_batches", 1)),
+        enable_progress_bar=bool(config.trainer.get("enable_progress_bar", True)),
+        enable_model_summary=bool(config.trainer.get("enable_model_summary", True)),
         logger=loggers,
         callbacks=callbacks,
     )
@@ -237,6 +311,12 @@ def run_lightning_training(config: DictConfig) -> None:
     trainer.fit(
         model=model,
         datamodule=data_module,
+    )
+
+    save_deployment_checkpoint(
+        config=config,
+        trainer=trainer,
+        output_dir=output_dir,
     )
 
     csv_logger = next(logger for logger in loggers if isinstance(logger, CSVLogger))

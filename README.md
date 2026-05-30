@@ -352,7 +352,7 @@ uv run seismonn download-data
 Параметры загрузки находятся в Hydra-конфиге:
 
 ```text
-configs/hydra/data/seismonn.yaml
+configs/data/seismonn.yaml
 ```
 
 ## Валидация данных
@@ -444,12 +444,12 @@ uv run seismonn train --overrides "trainer.max_epochs=5"
 Hydra-конфиги:
 
 ```text
-configs/hydra/config.yaml
-configs/hydra/data/seismonn.yaml
-configs/hydra/model/cnn.yaml
-configs/hydra/optimizer/adamw.yaml
-configs/hydra/trainer/default.yaml
-configs/hydra/tracking/mlflow.yaml
+configs/config.yaml
+configs/data/seismonn.yaml
+configs/model/cnn.yaml
+configs/optimizer/adamw.yaml
+configs/trainer/default.yaml
+configs/tracking/mlflow.yaml
 ```
 
 Главный Hydra-конфиг содержит defaults:

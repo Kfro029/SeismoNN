@@ -1,0 +1,7 @@
+﻿metadata_path: ${data.metadata_path}
+data_root: ${data.data_root}
+expected_shape: ${data.input_shape}
+expected_dtype: float32
+expected_splits: [train, val]
+validate_files: false
+output: null

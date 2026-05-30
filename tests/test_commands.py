@@ -47,11 +47,13 @@ def test_predict_command_writes_output_json(tmp_path):
     output_path = tmp_path / "prediction.json"
 
     predict(
-        checkpoint=str(checkpoint_path),
-        input_path=str(sample_path),
-        output=str(output_path),
-        device="cpu",
-        predictor_type="auto",
+        overrides=[
+            f"inference.checkpoint={checkpoint_path.as_posix()}",
+            f"inference.input_path={sample_path.as_posix()}",
+            f"inference.output={output_path.as_posix()}",
+            "inference.device=cpu",
+            "inference.predictor_type=auto",
+        ]
     )
 
     assert output_path.exists()
